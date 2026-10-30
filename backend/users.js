@@ -1,38 +1,23 @@
 import crypto from 'crypto';
 import express from 'express';
-import nodemailer from 'nodemailer';
 import { pool } from './db.js';
 import { hashPin, verifyPin, issueToken, issueUserToken, hashSecret, userIdFromRequest } from './auth.js';
 
 // ───────────────────────── ตั้งค่า (.env) ─────────────────────────
-// ADMIN_EMAIL : อีเมลที่สมัครแล้วจะได้เป็นแอดมินระบบ (ต้องยืนยันอีเมลก่อนเหมือนคนอื่น)
-// APP_URL     : URL ของเว็บที่ใช้ในลิงก์ยืนยัน (เช่น https://smashpang.example.com)
-// SMTP_*      : ส่งอีเมลยืนยัน — ไม่ตั้ง = ไม่ส่งจริง (dev จะคืนลิงก์ให้ในผลลัพธ์แทน)
+// ADMIN_EMAIL : อีเมลที่สมัครแล้วจะได้เป็นแอดมินระบบ — ไม่มีการยืนยันอีเมลแล้ว จึงควรสมัครบัญชีนี้เป็นคนแรกทันทีหลังติดตั้ง
+// APP_URL     : URL ของเว็บ (ใช้เป็นค่าอ้างอิง)
 const APP_URL = (process.env.APP_URL || '').replace(/\/$/, '');
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-const IS_PROD = process.env.NODE_ENV === 'production';
-const smtpReady = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 
-const mailer = smtpReady
-  ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: Number(process.env.SMTP_PORT || 587) === 465,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    })
-  : null;
-
-// สมัครด้วย Gmail เท่านั้น
-const EMAIL_RE = /^[a-z0-9._%+-]+@gmail\.com$/i;
+// อีเมลรูปแบบทั่วไป (ไม่ต้องเป็น Gmail) — ใช้เป็นตัวระบุบัญชีสำหรับล็อกอิน ไม่มีการส่งอีเมลยืนยัน
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,20}$/;
-const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 const GROUP_ID_RE = /^[a-z0-9][a-z0-9-]{2,29}$/;
 const PIN_RE = /^\d{4,8}$/;
 
 const newId = () => crypto.randomBytes(10).toString('hex');
-const baseUrl = (req) => APP_URL || `${req.protocol}://${req.get('host')}`;
 
-export const publicConfig = () => ({ emailEnabled: smtpReady });
+export const publicConfig = () => ({ emailEnabled: false });
 
 const userDto = (u) => ({ id: u.id, email: u.email, username: u.username, displayName: u.display_name, role: u.role, status: u.status });
 
@@ -40,26 +25,6 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
   console.error(err);
   res.status(500).json({ error: 'server_error' });
 });
-
-// ───────────────────────── ส่งลิงก์ยืนยัน ─────────────────────────
-async function sendVerification(req, user) {
-  const raw = crypto.randomBytes(24).toString('base64url');
-  await pool.query('DELETE FROM verifications WHERE user_id = ?', [user.id]);
-  await pool.query('INSERT INTO verifications (token_hash, user_id, expires_at) VALUES (?, ?, ?)', [hashSecret(raw), user.id, Date.now() + VERIFY_TTL_MS]);
-  const link = `${baseUrl(req)}/?verify=${raw}`;
-  if (mailer) {
-    await mailer.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: user.email,
-      subject: 'ยืนยันอีเมล SmashPang',
-      text: `สวัสดี ${user.display_name}\n\nกดลิงก์เพื่อยืนยันอีเมลและเปิดใช้งานบัญชี (หมดอายุใน 24 ชั่วโมง):\n${link}\n`,
-    });
-    return {};
-  }
-  console.log(`📧 [dev] ลิงก์ยืนยันของ ${user.email}: ${link}`);
-  // ไม่ได้ตั้ง SMTP: คืนลิงก์ให้ใช้ทดสอบ (ไม่ทำใน production)
-  return IS_PROD ? {} : { devLink: link };
-}
 
 // ───────────────────────── middleware ─────────────────────────
 async function loadUser(req, res, next) {
@@ -90,36 +55,32 @@ const throttle = (max, windowMs) => (req, res, next) => {
 // ───────────────────────── /api/auth ─────────────────────────
 export const auth = express.Router();
 
+// สมัครแล้วใช้งานได้ทันที (ไม่ต้องยืนยันอีเมล) — คืน token ให้ล็อกอินต่อเลย
 auth.post('/register', throttle(10, 60 * 60 * 1000), wrap(async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   const username = String(req.body?.username || '').trim();
   if (!EMAIL_RE.test(email) || email.length > 190) return res.status(400).json({ error: 'invalid_email' });
-  if (password.length < 8 || password.length > 100) return res.status(400).json({ error: 'weak_password' });
+  if (password.length < 6 || password.length > 100) return res.status(400).json({ error: 'weak_password' });
   if (!USERNAME_RE.test(username)) return res.status(400).json({ error: 'invalid_username' });
 
   const [nameTaken] = await pool.query('SELECT id FROM users WHERE username = ? AND email <> ?', [username, email]);
   if (nameTaken.length > 0) return res.status(409).json({ error: 'username_taken' });
   const [exist] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
   if (exist.length > 0) {
-    // สมัครค้างไว้ยังไม่ยืนยัน → ส่งลิงก์ใหม่ให้ แต่ไม่เปลี่ยนรหัสผ่านของบัญชีเดิม
-    if (exist[0].status === 'pending') return res.json({ ok: true, ...(await sendVerification(req, exist[0])) });
-    return res.status(409).json({ error: 'email_taken' });
+    // บัญชีเก่าที่สมัครค้างไว้ตอนยังมีขั้นตอนยืนยันอีเมล → ให้สมัครทับและเปิดใช้งานเลย
+    if (exist[0].status !== 'pending') return res.status(409).json({ error: 'email_taken' });
+    await pool.query("UPDATE users SET username = ?, display_name = ?, password_hash = ?, status = 'active' WHERE id = ?",
+      [username, username, hashPin(password), exist[0].id]);
+    return res.json({ ok: true, token: issueUserToken(exist[0].id) });
   }
-  const user = { id: newId(), email, display_name: username, role: email === ADMIN_EMAIL ? 'admin' : 'owner' };
+  const id = newId();
+  const role = email === ADMIN_EMAIL ? 'admin' : 'owner';
   await pool.query(
-    "INSERT INTO users (id, email, username, password_hash, display_name, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)",
-    [user.id, email, username, hashPin(password), username, user.role, Date.now()]
+    "INSERT INTO users (id, email, username, password_hash, display_name, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?)",
+    [id, email, username, hashPin(password), username, role, Date.now()]
   );
-  res.json({ ok: true, ...(await sendVerification(req, user)) });
-}));
-
-auth.post('/resend', throttle(5, 60 * 60 * 1000), wrap(async (req, res) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  const [rows] = await pool.query("SELECT * FROM users WHERE email = ? AND status = 'pending'", [email]);
-  // ตอบเหมือนกันเสมอ ไม่บอกว่าอีเมลนี้มีในระบบหรือไม่
-  const extra = rows[0] ? await sendVerification(req, rows[0]) : {};
-  res.json({ ok: true, ...extra });
+  res.json({ ok: true, token: issueUserToken(id) });
 }));
 
 // ยืนยันอีเมลจากลิงก์ → เปิดใช้งานบัญชี + ล็อกอินให้เลย
@@ -139,7 +100,11 @@ auth.post('/login', throttle(15, 10 * 60 * 1000), wrap(async (req, res) => {
   if (!user || !user.password_hash || !verifyPin(String(req.body?.password || ''), user.password_hash)) {
     return res.status(401).json({ error: 'wrong_credentials' });
   }
-  if (user.status === 'pending') return res.status(403).json({ error: 'not_verified' });
+  if (user.status === 'pending') {
+    // บัญชีเก่าที่ค้างรอยืนยันอีเมล — ไม่มีขั้นตอนยืนยันแล้ว เปิดใช้งานให้เลย
+    await pool.query("UPDATE users SET status = 'active' WHERE id = ?", [user.id]);
+    user.status = 'active';
+  }
   if (user.status === 'suspended') return res.status(403).json({ error: 'suspended' });
   res.json({ token: issueUserToken(user.id), user: userDto(user) });
 }));

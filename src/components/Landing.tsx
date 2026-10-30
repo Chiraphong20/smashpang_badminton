@@ -192,7 +192,7 @@ export function Landing() {
             {MODES.map(m => <img key={m} src={`/modes/${m}-mascot.webp`} alt="" draggable={false} className="w-20 h-20 sm:w-24 sm:h-24 object-contain drop-shadow-lg" />)}
           </div>
           <h2 className="font-headline font-black text-3xl md:text-4xl">พร้อมเปิดก๊วนของคุณหรือยัง?</h2>
-          <p className="opacity-80">สมัครด้วย Gmail สร้างก๊วนด้วยรหัสกับ PIN แล้วตั้งชื่อและเลือกโหมดข้างในระบบได้เลย</p>
+          <p className="opacity-80">สมัครด้วยอีเมล + Username + รหัสผ่าน (ไม่ต้องยืนยันอีเมล) สร้างก๊วนด้วยรหัสกับ PIN แล้วตั้งชื่อและเลือกโหมดข้างในระบบได้เลย</p>
           <a href="?account" className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-primary font-headline font-black hover:brightness-95">สมัครเป็นเจ้าของก๊วน <ArrowRight size={18} /></a>
         </div>
       </section>
