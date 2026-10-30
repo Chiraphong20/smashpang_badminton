@@ -28,17 +28,13 @@ export function Landing() {
   const [groups, setGroups] = useState<Listing[] | null>(null);
   const [mode, setMode] = useState<SessionMode>('perGame');
   const [picked, setPicked] = useState(false);  // เลือกเองแล้ว = หยุดสลับอัตโนมัติ
-  const theme = MODE_THEME[mode];
+  const theme = MODE_THEME.perGame; // สีของหน้าคงที่ตามมาสคอตนับเกม (กรมท่า + เขียวมะนาว) — เปลี่ยนเฉพาะรูปมาสคอต
+  const shown = MODE_THEME[mode];
 
   useEffect(() => {
     fetchListings({}).then(r => setGroups(r ? r.slice(0, 6) : []));
   }, []);
 
-  // ทั้งหน้าเปลี่ยนสีตามตัวการ์ตูนที่เลือก (ใช้ธีมเดียวกับในแอป: [data-mode] ใน index.css)
-  useEffect(() => {
-    document.documentElement.dataset.mode = mode;
-    return () => { delete document.documentElement.dataset.mode; };
-  }, [mode]);
 
   useEffect(() => {
     if (picked) return;
@@ -93,8 +89,8 @@ export function Landing() {
                 initial={{ opacity: 0, y: 24, scale: 0.92 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -16, scale: 0.96 }} transition={{ duration: 0.35 }}
                 className="absolute inset-0 m-auto h-[88%] w-auto max-w-[90%] object-contain drop-shadow-2xl" />
             </AnimatePresence>
-            <span className="absolute left-4 top-4 px-4 py-1.5 rounded-full text-white text-sm font-black shadow-md" style={{ backgroundColor: theme.color }}>
-              {theme.emoji} โหมด{MODE_LABELS[mode]}
+            <span className="absolute left-4 top-4 px-4 py-1.5 rounded-full text-white text-sm font-black shadow-md" style={{ backgroundColor: shown.color }}>
+              {shown.emoji} โหมด{MODE_LABELS[mode]}
             </span>
           </div>
           <div className="grid grid-cols-4 gap-3">
