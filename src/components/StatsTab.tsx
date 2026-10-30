@@ -94,7 +94,7 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
     map.forEach(r => { r.spent = spendByKey.get(r.key) || 0; r.name = nameByKey.get(r.key) || r.name; });
     const list = [...map.values()];
     list.sort((a, b) => {
-      if (sortBy === 'wins') return b.wins - a.wins || (b.scored ? b.wins / b.scored : 0) - (a.scored ? a.wins / a.scored : 0) || b.pointsFor - b.pointsAgainst - (a.pointsFor - a.pointsAgainst);
+      if (sortBy === 'wins') return b.wins - a.wins || (b.scored ? b.wins / b.scored : 0) - (a.scored ? a.wins / a.scored : 0);
       if (sortBy === 'spent') return b.spent - a.spent;
       return b.games - a.games;
     });
@@ -159,7 +159,7 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className={card}><p className="text-xs font-bold text-on-surface/40">เกมที่ตี</p><p className="font-headline font-black text-3xl">{games.length}</p></div>
         <div className={card}><p className="text-xs font-bold text-on-surface/40">ผู้เล่น</p><p className="font-headline font-black text-3xl">{playersWithGames.length}</p></div>
-        <div className={card}><p className="text-xs font-bold text-on-surface/40">เกมที่มีคะแนน</p><p className="font-headline font-black text-3xl">{scoredGames}</p></div>
+        <div className={card}><p className="text-xs font-bold text-on-surface/40">เกมที่บันทึกผล</p><p className="font-headline font-black text-3xl">{scoredGames}</p></div>
         <div className={card}>
           <p className="text-xs font-bold text-on-surface/40">ยอดเงินรวม{totalPaid !== null ? ` (จ่ายแล้ว ฿${totalPaid})` : ''}</p>
           <p className="font-headline font-black text-3xl">฿{totalSpent}</p>
@@ -229,13 +229,12 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
               <th className="p-3 text-center">แพ้</th>
               <th className="p-3 text-center">เสมอ</th>
               <th className="p-3 text-center">%ชนะ</th>
-              <th className="p-3 text-center">+/-</th>
               <th className="p-3 text-right"><Wallet size={14} className="inline" /> เงิน</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={9} className="p-8 text-center text-on-surface/30">ยังไม่มีข้อมูล</td></tr>
+              <tr><td colSpan={8} className="p-8 text-center text-on-surface/30">ยังไม่มีข้อมูล</td></tr>
             )}
             {rows.map((r, i) => {
               const behind = mode === 'buffet' && view === TODAY && r.games < avgGames - 0.5;
@@ -256,7 +255,6 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
                   <td className="p-3 text-center font-bold text-red-500">{r.losses}</td>
                   <td className="p-3 text-center text-on-surface/50">{r.draws}</td>
                   <td className="p-3 text-center">{r.scored ? Math.round((r.wins / r.scored) * 100) + '%' : '—'}</td>
-                  <td className="p-3 text-center">{r.scored ? (r.pointsFor - r.pointsAgainst > 0 ? '+' : '') + (r.pointsFor - r.pointsAgainst) : '—'}</td>
                   <td className="p-3 text-right font-bold">฿{r.spent}</td>
                 </tr>
               );
@@ -271,9 +269,9 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
           {[...games].sort((a, b) => b.playedAt - a.playedAt).slice(0, 15).map(g => (
             <div key={g.id} className="flex items-center gap-3 text-sm py-1.5 border-b border-on-surface/5 last:border-0">
               <span className="text-xs text-on-surface/40 w-24 shrink-0">{format(g.playedAt, 'dd/MM HH:mm')}</span>
-              <span className="flex-1 truncate">{g.players.slice(0, 2).map(p => p.name).join(' & ')}</span>
-              <span className="font-headline font-black">{typeof g.scoreA === 'number' ? `${g.scoreA} - ${g.scoreB}` : 'vs'}</span>
-              <span className="flex-1 truncate text-right">{g.players.slice(2, 4).map(p => p.name).join(' & ')}</span>
+              <span className={cn('flex-1 truncate', typeof g.scoreA === 'number' && g.scoreA > g.scoreB! && 'font-black text-emerald-700')}>{typeof g.scoreA === 'number' && g.scoreA > g.scoreB! ? '🏆 ' : ''}{g.players.slice(0, 2).map(p => p.name).join(' & ')}</span>
+              <span className="font-headline font-black text-xs text-on-surface/50 shrink-0">{typeof g.scoreA !== 'number' ? 'vs' : g.scoreA === g.scoreB ? 'เสมอ' : 'ชนะ'}</span>
+              <span className={cn('flex-1 truncate text-right', typeof g.scoreA === 'number' && g.scoreB! > g.scoreA && 'font-black text-emerald-700')}>{g.players.slice(2, 4).map(p => p.name).join(' & ')}{typeof g.scoreA === 'number' && g.scoreB! > g.scoreA ? ' 🏆' : ''}</span>
             </div>
           ))}
         </section>

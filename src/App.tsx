@@ -105,6 +105,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
   const [gameHistory, setGameHistory] = useState<GameRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('courts');
+  const [focusCourtId, setFocusCourtId] = useState<string | null>(null);
   const [courtFeePerPerson, setCourtFeePerPerson] = useState(40);
   const [shuttlePrice, setShuttlePrice] = useState(25);
   // null = วันนี้ยังไม่ได้เลือกรูปแบบก๊วน (จะขึ้นหน้าเลือกโหมด) · เริ่มวันใหม่แล้วกลับเป็น null
@@ -1597,6 +1598,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
               <motion.div key={activeTab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
                 {activeTab === 'dashboard' && (
                   <DashboardTab 
+                    onOpenCourt={(id) => { setFocusCourtId(id); setActiveTab('courts'); }}
                     members={members} courts={courts} snacks={snacks} 
                     paymentHistory={paymentHistory} gameHistory={gameHistory}
                     onUpdateRank={updateMemberRank}
@@ -1666,6 +1668,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                 )}
                 {activeTab === 'courts' && (
                   <CourtsTab
+                    focusCourtId={focusCourtId}
                     members={members} courts={courts} snacks={snacks}
                     searchQuery={searchQuery} gameHistory={gameHistory}
                     onAutoMatch={autoMatch} onStartGame={startGame} onResetCourt={resetCourt}

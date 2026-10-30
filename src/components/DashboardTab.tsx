@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Users, TrendingUp, Calendar, Search, LogOut, Check, ChevronUp, ChevronDown,
-  Trash2, ShoppingCart, UserPlus, Clock, Trophy, FileText, ChevronLeft, Bolt, Banknote, X, Plus, RefreshCw, Monitor, Cloud, Upload, Download, CheckCircle2, History, Gift, BarChart3
+  Trash2, ShoppingCart, UserPlus, Clock, Trophy, FileText, ChevronLeft, Bolt, Banknote, X, Plus, RefreshCw, Monitor, Cloud, Upload, Download, CheckCircle2, History, Gift, BarChart3, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -38,6 +38,8 @@ interface Props {
   isSyncing: boolean;
   onImportLine: () => void;
   sessionStartDate?: number | null;
+  /** กดการ์ด "คอร์ดที่กำลังเล่น" เพื่อไปหน้าจัดคอร์ทของคอร์ทนั้น */
+  onOpenCourt?: (courtId: string) => void;
 }
 
 
@@ -428,7 +430,7 @@ export function DashboardTab({
   onAddCourt, isSidebarCollapsed, onCheckIn, onRemove, onResetDay,
   onClearBoard, onUpdateGame,
   isSyncing, onImportLine,
-  sessionStartDate
+  sessionStartDate, onOpenCourt
 }: Props) {
   // เก็บแค่ id ไม่เก็บ snapshot ของ Member ทั้งก้อน — เดี๋ยว modal จะได้อ่านข้อมูลสดจาก currentMembers
   // เสมอ (ไม่งั้นพอลบสินค้า/แก้ไขอะไรระหว่างเปิด modal อยู่ จะไม่เห็นการเปลี่ยนแปลงจนกว่าจะปิดเปิดใหม่)
@@ -637,7 +639,13 @@ export function DashboardTab({
   // Calculate total shuttles from game history for 100% accuracy based on matches
   const totalShuttles = (viewingSession?.gameHistory || gameHistory).reduce((a, g) => a + (g.shuttlesUsed || 0), 0);
   const totalGames = (viewingSession?.gameHistory || gameHistory).length;
-  const playingCourts = courts.filter(c => c.status === 'active' && c.players.some(Boolean));
+  const courtState = (c: Court): 'playing' | 'preparing' | 'empty' =>
+    c.status === 'active' && c.players.some(Boolean) ? 'playing' : c.players.some(Boolean) ? 'preparing' : 'empty';
+  const courtCounts = {
+    playing: courts.filter(c => courtState(c) === 'playing').length,
+    preparing: courts.filter(c => courtState(c) === 'preparing').length,
+    empty: courts.filter(c => courtState(c) === 'empty').length,
+  };
   const recentGames = [...(viewingSession?.gameHistory || gameHistory)].sort((a, b) => b.playedAt - a.playedAt).slice(0, 6);
 
   return (
@@ -1260,9 +1268,16 @@ export function DashboardTab({
       {/* ── คอร์ดที่กำลังเล่นอยู่ (ย้อนหลัง = เกมของวันนั้น) ── */}
       <aside className="bg-white rounded-3xl shadow-sm border border-on-surface/5 p-5 space-y-3 xl:sticky xl:top-4">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-headline font-black text-lg">{isReadOnly ? 'เกมของวันนั้น' : 'คอร์ดที่กำลังเล่น'}</h3>
-          {!isReadOnly && <span className="text-xs font-black text-primary bg-primary/10 px-2.5 py-1 rounded-full whitespace-nowrap">{playingCourts.length}/{courts.length} คอร์ด</span>}
+          <h3 className="font-headline font-black text-lg">{isReadOnly ? 'เกมของวันนั้น' : 'สถานะคอร์ท'}</h3>
+          {!isReadOnly && <span className="text-xs font-black text-primary bg-primary/10 px-2.5 py-1 rounded-full whitespace-nowrap">ทั้งหมด {courts.length} คอร์ท</span>}
         </div>
+        {!isReadOnly && courts.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 text-[11px] font-black">
+            <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-700">กำลังเล่น {courtCounts.playing}</span>
+            <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">กำลังจัด {courtCounts.preparing}</span>
+            <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">ว่าง {courtCounts.empty}</span>
+          </div>
+        )}
         {isReadOnly ? (
           recentGames.length === 0 ? (
             <p className="text-sm text-on-surface/40 py-8 text-center">ไม่มีเกมในวันนั้น</p>
@@ -1280,24 +1295,42 @@ export function DashboardTab({
               </div>
             );
           })
-        ) : playingCourts.length === 0 ? (
-          <p className="text-sm text-on-surface/40 py-8 text-center">ตอนนี้ยังไม่มีคอร์ดที่กำลังเล่น</p>
-        ) : playingCourts.map(c => {
+        ) : courts.length === 0 ? (
+          <p className="text-sm text-on-surface/40 py-8 text-center">ยังไม่มีคอร์ท — เพิ่มได้ที่หน้า "จัดคอร์ท"</p>
+        ) : courts.map(c => {
+          const st = courtState(c);
           const names = c.players.map(id => (id ? currentMembers.find(m => m.id === id)?.name : null) || '—');
+          const filled = c.players.filter(Boolean).length;
           const half = Math.ceil(names.length / 2);
-          const mins = c.startTime ? Math.max(0, Math.floor((nowTick - c.startTime) / 60000)) : null;
+          const mins = st === 'playing' && c.startTime ? Math.max(0, Math.floor((nowTick - c.startTime) / 60000)) : null;
+          const tone = st === 'playing'
+            ? { card: 'border-green-500/30 bg-green-50/60 hover:border-green-500/60 hover:bg-green-50', chip: 'bg-green-600 text-white', text: 'text-green-700', label: 'กำลังเล่น' }
+            : st === 'preparing'
+              ? { card: 'border-amber-400/40 bg-amber-50/60 hover:border-amber-400/70 hover:bg-amber-50', chip: 'bg-amber-500 text-white', text: 'text-amber-700', label: `กำลังจัด ${filled}/4` }
+              : { card: 'border-on-surface/10 bg-slate-50 hover:border-on-surface/25 hover:bg-white', chip: 'bg-slate-400 text-white', text: 'text-slate-500', label: 'ว่าง' };
           return (
-            <div key={c.id} className="rounded-2xl border border-green-500/30 bg-green-50/60 p-3 space-y-2">
+            <button key={c.id} type="button" onClick={() => onOpenCourt?.(c.id)} disabled={!onOpenCourt}
+              className={cn('w-full text-left rounded-2xl border p-3 space-y-2 transition-all hover:shadow-md active:scale-[0.99] disabled:cursor-default', tone.card)}>
               <div className="flex items-center justify-between gap-2">
                 <span className="px-3 py-1 rounded-full bg-primary text-white text-xs font-black">{c.name}</span>
-                {mins !== null && <span className="flex items-center gap-1 text-xs font-bold text-green-700"><Clock size={12} /> เล่นมาแล้ว {mins} นาที</span>}
+                <span className={cn('px-2.5 py-1 rounded-full text-[11px] font-black', tone.chip)}>{tone.label}</span>
               </div>
-              <div className="text-sm font-bold leading-snug">
-                <p className="truncate">{names.slice(0, half).join(' / ')}</p>
-                <p className="text-[11px] font-black text-on-surface/30 my-0.5">VS</p>
-                <p className="truncate">{names.slice(half).join(' / ')}</p>
+              {st === 'empty' ? (
+                <p className="text-xs font-semibold text-on-surface/40">ยังไม่มีผู้เล่น — พร้อมให้จัดคน</p>
+              ) : (
+                <div className="text-sm font-bold leading-snug">
+                  <p className="truncate">{names.slice(0, half).join(' / ')}</p>
+                  <p className="text-[11px] font-black text-on-surface/30 my-0.5">VS</p>
+                  <p className="truncate">{names.slice(half).join(' / ')}</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                {mins !== null
+                  ? <span className={cn('flex items-center gap-1 text-xs font-bold', tone.text)}><Clock size={12} /> เล่นมาแล้ว {mins} นาที</span>
+                  : <span />}
+                {onOpenCourt && <span className={cn('flex items-center gap-0.5 text-[11px] font-black', tone.text)}>{st === 'empty' ? 'จัดคนลงคอร์ทนี้' : 'เปิดคอร์ทนี้'} <ChevronRight size={13} /></span>}
               </div>
-            </div>
+            </button>
           );
         })}
       </aside>

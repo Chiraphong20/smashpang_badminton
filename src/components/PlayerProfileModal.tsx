@@ -115,12 +115,8 @@ export function PlayerProfileModal({ playerId, members, gameHistory, sessionHist
             <div className={stat}><p className="font-headline font-black text-2xl">{winRate !== null ? `${winRate}%` : '—'}</p><p className="text-[11px] font-bold text-on-surface/50">อัตราชนะ</p></div>
           </div>
 
-          {p.scored > 0 && (
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-on-surface/8 px-4 py-3 text-sm">
-              <span className="font-bold text-on-surface/60">คะแนนได้ / เสีย</span>
-              <span className="font-headline font-black">{p.pf} / {p.pa} <span className={cn('ml-1', p.pf - p.pa >= 0 ? 'text-emerald-600' : 'text-red-500')}>({p.pf - p.pa >= 0 ? '+' : ''}{p.pf - p.pa})</span></span>
-              {p.streak >= 2 && <span className="flex items-center gap-1 text-orange-600 font-black"><Flame size={15} /> ชนะติด {p.streak}</span>}
-            </div>
+          {p.streak >= 2 && (
+            <div className="flex items-center justify-center gap-1.5 rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3 text-sm text-orange-600 font-black"><Flame size={16} /> ชนะติดต่อกัน {p.streak} เกม</div>
           )}
 
           {p.results.some(Boolean) && (
@@ -167,7 +163,7 @@ export function PlayerProfileModal({ playerId, members, gameHistory, sessionHist
                     <p className="font-bold truncate">{mates}</p>
                     <p className="text-on-surface/50 truncate">vs {opp}</p>
                   </div>
-                  {has && <span className={cn('font-headline font-black shrink-0', my > th ? 'text-emerald-600' : my < th ? 'text-red-500' : 'text-slate-500')}>{my} - {th}</span>}
+                  {has && <span className={cn('text-xs font-black px-2.5 py-1 rounded-full shrink-0', my > th ? 'bg-emerald-100 text-emerald-700' : my < th ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-600')}>{my > th ? 'ชนะ' : my < th ? 'แพ้' : 'เสมอ'}</span>}
                 </div>
               );
             })}

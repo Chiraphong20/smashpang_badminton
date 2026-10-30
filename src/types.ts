@@ -54,7 +54,7 @@ export interface GameRecord {
   shuttlesUsed: number;
   shuttleCostPerPerson: number;
   courtFeePerPerson: number; // 0 ถ้าเจ้าตัวเคยจ่ายแล้ว
-  // คะแนน (ทีม A = players[0..1], ทีม B = players[2..3]) — ไม่มี = ไม่ได้บันทึกผล
+  // ผลเกม (ทีม A = players[0..1], ทีม B = players[2..3]): A ชนะ = 1-0, B ชนะ = 0-1, เสมอ = 0-0, ไม่มี = ไม่ได้บันทึกผล (เกมเก่าอาจมีคะแนนจริง)
   scoreA?: number;
   scoreB?: number;
 }
@@ -80,7 +80,7 @@ export const MODE_THEME: Record<SessionMode, { emoji: string; desc: string; colo
   perGame: { emoji: '🏸', desc: 'ค่าคอร์ดครั้งเดียว + ค่าลูกตามเกมที่ตี', color: '#1b2a6b', soft: '#e8ebf8', colorName: 'กรมท่า' },
   buffet: { emoji: '🎟️', desc: 'ราคาเดียว ตีกี่เกมก็ได้ ดูจำนวนเกมเพื่อเฉลี่ยให้เท่ากัน', color: '#ea580c', soft: '#fff1e6', colorName: 'ส้ม' },
   split: { emoji: '➗', desc: 'รวมค่าสนาม + ค่าลูก แล้วหารเท่ากันทุกคน', color: '#5b21b6', soft: '#f1eafc', colorName: 'ม่วง' },
-  fun: { emoji: '🔀', desc: 'สุ่มจับคู่เพื่อนตีเฮฮา ไม่คิดเงิน นับแต้ม ดูแพ้/ชนะและอันดับ', color: '#0f766e', soft: '#e3f6f3', colorName: 'เขียวเทอร์ควอยซ์' },
+  fun: { emoji: '🔀', desc: 'สุ่มจับคู่เพื่อนตีเฮฮา ไม่คิดเงิน บันทึกแพ้/ชนะ/เสมอ ดูอันดับ', color: '#0f766e', soft: '#e3f6f3', colorName: 'เขียวเทอร์ควอยซ์' },
 };
 
 export const DEFAULT_MODE_CONFIG: ModeConfig = {

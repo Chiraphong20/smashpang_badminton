@@ -42,6 +42,8 @@ function CourtIcon({ tone }: { tone: 'green' | 'orange' | 'gray' }) {
 }
 
 interface Props {
+  /** เปิดหน้านี้พร้อมเลือกคอร์ทนี้ (เช่นกดมาจากการ์ดในหน้าหลัก) */
+  focusCourtId?: string | null;
   members: Member[];
   courts: Court[];
   snacks: Snack[];
@@ -566,16 +568,18 @@ export function CourtsTab({
   minRankFilter, setMinRankFilter, maxRankFilter, setMaxRankFilter,
   onAddCourt,
   courtQueues, onAddCourtQueue, onRemoveCourtQueue, onUpdateCourtQueue, onMoveCourtQueue,
-  sessionMode, askScore, shuttleChargePerShuttle,
+  sessionMode, askScore, shuttleChargePerShuttle, focusCourtId,
 }: Props) {
   const [scoringCourtId, setScoringCourtId] = useState<string | null>(null);
-  const [scoreA, setScoreA] = useState(0);
-  const [scoreB, setScoreB] = useState(0);
   const finishCourt = (courtId: string) => {
-    if (askScore) { setScoreA(0); setScoreB(0); setScoringCourtId(courtId); }
+    if (askScore) setScoringCourtId(courtId);
     else onResetCourt(courtId);
   };
-  const [selectedCourtId, setSelectedCourtId] = useState<string | null>(courts[0]?.id ?? null);
+  const [selectedCourtId, setSelectedCourtId] = useState<string | null>(() => (focusCourtId && courts.some(c => c.id === focusCourtId) ? focusCourtId : courts[0]?.id ?? null));
+  useEffect(() => {
+    if (focusCourtId && courts.some(c => c.id === focusCourtId)) setSelectedCourtId(focusCourtId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusCourtId]);
   const [posTarget, setPosTarget] = useState<Member | null>(null);
   const [localSearch, setLocalSearch] = useState('');
   const [sortBy, setSortBy] = useState<'queue' | 'wait' | 'games'>('queue');
@@ -739,34 +743,35 @@ export function CourtsTab({
 
   return (
     <div className="space-y-4 xl:space-y-0 xl:flex xl:flex-col xl:gap-4 xl:h-[calc(100vh-3rem)]">
-      {/* Score modal */}
+      {/* ผลการแข่งขัน: ทีมไหนชนะ หรือเสมอ — เก็บเป็น 1-0 / 0-1 / 0-0 (ไม่เก็บคะแนนจริง) */}
       {scoringCourtId && (() => {
         const sc = courts.find(c => c.id === scoringCourtId);
         const nm = (i: number) => members.find(m => m.id === sc?.players[i])?.name ?? '—';
         const done = (score?: { scoreA: number; scoreB: number }) => { onResetCourt(scoringCourtId, score); setScoringCourtId(null); };
-        const Counter = ({ label, names, value, set }: { label: string; names: string; value: number; set: (n: number) => void }) => (
-          <div className="flex-1 bg-background rounded-2xl p-4 text-center space-y-2">
-            <p className="text-xs font-black text-on-surface/40">{label}</p>
-            <p className="text-sm font-bold truncate">{names}</p>
-            <p className="font-headline font-black text-5xl">{value}</p>
-            <div className="flex gap-2 justify-center">
-              <button onClick={() => set(Math.max(0, value - 1))} className="w-12 h-12 rounded-xl bg-white font-black text-xl shadow-sm">−</button>
-              <button onClick={() => set(value + 1)} className="w-12 h-12 rounded-xl bg-primary text-white font-black text-xl shadow-sm">+</button>
-            </div>
-          </div>
-        );
         return (
           <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setScoringCourtId(null)}>
-            <div className="bg-white rounded-[2rem] p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-              <h3 className="font-headline font-black text-xl text-center">บันทึกคะแนน · {sc?.name}</h3>
-              <div className="flex gap-3">
-                <Counter label="ทีม A" names={`${nm(0)} & ${nm(1)}`} value={scoreA} set={setScoreA} />
-                <Counter label="ทีม B" names={`${nm(2)} & ${nm(3)}`} value={scoreB} set={setScoreB} />
+            <div className="bg-white rounded-[2rem] p-6 w-full max-w-md space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="text-center space-y-1">
+                <p className="text-sm font-black text-primary">{sc?.name}</p>
+                <h3 className="font-headline font-black text-2xl">ใครชนะ?</h3>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => done()} className="flex-1 py-3 rounded-xl bg-background font-bold text-sm text-on-surface/60">ข้ามคะแนน</button>
-                <button onClick={() => done({ scoreA, scoreB })} className="flex-[2] py-3 rounded-xl bg-primary text-white font-bold text-sm">บันทึกและจบเกม</button>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => done({ scoreA: 1, scoreB: 0 })}
+                  className="rounded-2xl bg-blue-50 border-2 border-blue-200 hover:border-blue-500 hover:bg-blue-100 active:scale-[0.98] transition-all p-4 text-center space-y-1">
+                  <p className="text-xs font-black text-blue-600">ทีม A ชนะ 🏆</p>
+                  <p className="font-bold text-sm truncate">{nm(0)}</p>
+                  <p className="font-bold text-sm truncate">{nm(1)}</p>
+                </button>
+                <button onClick={() => done({ scoreA: 0, scoreB: 1 })}
+                  className="rounded-2xl bg-orange-50 border-2 border-orange-200 hover:border-orange-500 hover:bg-orange-100 active:scale-[0.98] transition-all p-4 text-center space-y-1">
+                  <p className="text-xs font-black text-orange-600">ทีม B ชนะ 🏆</p>
+                  <p className="font-bold text-sm truncate">{nm(2)}</p>
+                  <p className="font-bold text-sm truncate">{nm(3)}</p>
+                </button>
               </div>
+              <button onClick={() => done({ scoreA: 0, scoreB: 0 })}
+                className="w-full py-3.5 rounded-2xl bg-slate-50 border-2 border-slate-200 hover:border-slate-400 font-black text-sm text-slate-700 active:scale-[0.99] transition-all">🤝 เสมอ</button>
+              <button onClick={() => done()} className="w-full py-2.5 rounded-xl text-xs font-bold text-on-surface/45 hover:bg-background">ข้าม (ไม่บันทึกผล) และจบเกม</button>
             </div>
           </div>
         );

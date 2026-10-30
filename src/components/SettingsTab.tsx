@@ -20,7 +20,7 @@ const MODE_INFO: Record<SessionMode, string> = {
   perGame: 'ค่าคอร์ดครั้งเดียว + ค่าลูกคิดตามเกมที่ตี',
   buffet: 'ราคาเดียว ตีกี่เกมก็ได้ — ดูจำนวนเกมของแต่ละคนเพื่อเฉลี่ยให้เท่ากัน',
   split: 'รวมค่าสนาม + ค่าลูก แล้วหารเท่าตามจำนวนคนที่ได้ตี (กดเรียกเก็บในแท็บสถิติ)',
-  fun: 'ตีเฮฮา ไม่คิดเงิน นับแต้ม ดูแพ้/ชนะและอันดับ',
+  fun: 'ตีเฮฮา ไม่คิดเงิน บันทึกแพ้/ชนะ/เสมอ ดูอันดับ',
 };
 
 interface Props {
@@ -169,7 +169,7 @@ export function SettingsTab({
           <label className="flex items-center gap-3 text-sm font-semibold text-on-surface/70 cursor-pointer">
             <input type="checkbox" checked={modeConfig.trackScore}
               onChange={e => setModeConfig(c => ({ ...c, trackScore: e.target.checked }))} className="w-5 h-5" />
-            ถามคะแนนทุกครั้งที่จบเกม (เก็บสถิติแพ้/ชนะ)
+            ถามผลทุกครั้งที่จบเกม (ทีมไหนชนะ หรือเสมอ) เพื่อเก็บสถิติแพ้/ชนะ
           </label>
         )}
       </section>
