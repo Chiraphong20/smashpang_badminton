@@ -1,3 +1,4 @@
+import type { SessionMode } from '../types';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const params = () => new URLSearchParams(window.location.search);
@@ -147,4 +148,31 @@ export async function enterGroupAsOwner(gid: string): Promise<boolean> {
   if (!r.ok) return false;
   setToken(gid, r.data.token);
   return true;
+}
+
+// ───────────────────────── แพ็กเกจ (Plans) ─────────────────────────
+
+export interface PlanLimits {
+  id: string;
+  name: string;
+  price: string;
+  isDefault: boolean;
+  maxPlayers: number | null;        // ผู้เล่นต่อครั้ง · null = ไม่จำกัด
+  maxSessionsMonth: number | null;  // จำนวนครั้งที่จัดก๊วนต่อเดือน
+  maxGroups: number | null;
+  modes: SessionMode[];
+  features: { listing: boolean; queueScreen: boolean };
+}
+export interface PlanInfo {
+  plan: PlanLimits;
+  expiresAt: number | null;
+  expired: boolean;
+  usage: { sessionsThisMonth: number; groups: number };
+}
+
+export async function fetchPlan(): Promise<PlanInfo | null> {
+  try {
+    const res = await apiFetch('/plan');
+    return res.ok ? await res.json() : null;
+  } catch { return null; }
 }

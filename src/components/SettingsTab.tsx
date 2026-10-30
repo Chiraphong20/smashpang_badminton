@@ -13,6 +13,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { ListingEditor } from './ListingEditor';
+import type { PlanInfo } from '../lib/api';
 import { Rank, SessionMode, ModeConfig, MODE_LABELS, MODE_THEME } from '../types';
 
 const MODE_INFO: Record<SessionMode, string> = {
@@ -34,6 +35,7 @@ interface Props {
   onChangePin: (pin: string) => Promise<boolean>;
   onLogout: () => void;
   onSwitchGroup: () => void;
+  plan?: PlanInfo | null;
   queueUrl: string;
   sessionMode: SessionMode;
   setSessionMode: (m: SessionMode) => void;
@@ -45,7 +47,7 @@ export function SettingsTab({
   courtFeePerPerson, setCourtFeePerPerson,
   shuttlePrice, setShuttlePrice,
   onSeedMockHistory, onResetDay, onFactoryReset,
-  rankMemory, onChangePin, onLogout, onSwitchGroup, queueUrl,
+  rankMemory, onChangePin, onLogout, onSwitchGroup, plan, queueUrl,
   sessionMode, setSessionMode, modeConfig, setModeConfig
 }: Props) {
   const [copied, setCopied] = useState(false);
@@ -107,6 +109,33 @@ export function SettingsTab({
         </div>
       </section>
 
+      {plan && (
+        <section className="bg-white rounded-[2rem] p-4 sm:p-5 shadow-sm border border-on-surface/5 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-headline font-black text-base">แพ็กเกจ: {plan.plan.name}</p>
+            {plan.plan.price && <span className="text-xs font-bold text-on-surface/45">{plan.plan.price}</span>}
+            {plan.expiresAt && (
+              <span className={`text-xs font-black px-2.5 py-1 rounded-full ${plan.expired ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
+                {plan.expired ? 'หมดอายุแล้ว' : 'หมดอายุ ' + new Date(plan.expiresAt).toLocaleDateString('th-TH')}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+            {([
+              ['ผู้เล่นต่อครั้ง', plan.plan.maxPlayers == null ? 'ไม่จำกัด' : `สูงสุด ${plan.plan.maxPlayers} คน`],
+              ['จัดก๊วนเดือนนี้', plan.plan.maxSessionsMonth == null ? `${plan.usage.sessionsThisMonth} ครั้ง` : `${plan.usage.sessionsThisMonth}/${plan.plan.maxSessionsMonth} ครั้ง`],
+              ['โหมดที่ใช้ได้', `${plan.plan.modes.length}/4 โหมด`],
+              ['จำนวนก๊วน', plan.plan.maxGroups == null ? `${plan.usage.groups} ก๊วน` : `${plan.usage.groups}/${plan.plan.maxGroups} ก๊วน`],
+            ] as [string, string][]).map(([l, v]) => (
+              <div key={l} className="rounded-xl bg-background py-2.5 px-2">
+                <p className="text-[10px] font-bold text-on-surface/45">{l}</p>
+                <p className="font-black text-sm">{v}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <ListingEditor />
 
       {/* Session Mode */}
@@ -114,7 +143,7 @@ export function SettingsTab({
         <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40">รูปแบบการจัดก๊วน</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {(Object.keys(MODE_LABELS) as SessionMode[]).map(m => (
-            <button key={m} onClick={() => setSessionMode(m)}
+            <button key={m} onClick={() => setSessionMode(m)} disabled={!!plan && !plan.plan.modes.includes(m)} title={plan && !plan.plan.modes.includes(m) ? 'แพ็กเกจของคุณยังไม่รองรับโหมดนี้' : undefined}
               style={{ backgroundColor: sessionMode === m ? MODE_THEME[m].color : MODE_THEME[m].soft, color: sessionMode === m ? '#fff' : MODE_THEME[m].color, borderColor: MODE_THEME[m].color }}
               className="px-4 py-3 rounded-2xl font-bold text-sm transition-all border-2">
               {MODE_THEME[m].emoji} {MODE_LABELS[m]}

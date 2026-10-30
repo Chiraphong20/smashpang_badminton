@@ -147,9 +147,9 @@ function OwnerArea({ me, myGroups, notice, onReload, onLogout }: {
     e.preventDefault();
     setBusy(true); setError('');
     const gid = id.trim().toLowerCase();
-    const r = await userApi<{ error?: string }>('/me/groups', 'POST', { id: gid, pin });
+    const r = await userApi<{ error?: string; message?: string }>('/me/groups', 'POST', { id: gid, pin });
     setBusy(false);
-    if (!r.ok) { setError(err(r.data.error)); return; }
+    if (!r.ok) { setError((r.data.error === 'plan_limit' && r.data.message) || err(r.data.error)); return; }
     await enter(gid);
   };
 

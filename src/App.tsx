@@ -10,14 +10,14 @@ import { LoginScreen } from './components/LoginScreen';
 import { GroupGate } from './components/GroupGate';
 import { FindGroups } from './components/FindGroups';
 import { Landing } from './components/Landing';
-import { apiFetch, apiJson, getGroupId, getToken, clearToken, clearUserToken, isQueueMode, fetchGroupInfo, rememberGroup, groupUrl, formatSlot, ListingSlot } from './lib/api';
+import { apiFetch, apiJson, getGroupId, getToken, clearToken, clearUserToken, isQueueMode, fetchGroupInfo, rememberGroup, groupUrl, formatSlot, ListingSlot, fetchPlan, PlanInfo } from './lib/api';
 import { DashboardTab } from './components/DashboardTab';
 import { CourtsTab } from './components/CourtsTab';
 import { MembersTab } from './components/MembersTab';
 import { SettingsTab } from './components/SettingsTab';
 import { StatsTab } from './components/StatsTab';
 import { AdminPanel } from './components/AdminPanel';
-import { GroupNameSetup, ModePicker } from './components/SetupOverlay';
+import { GroupNameSetup, ModePicker, QuotaBlock } from './components/SetupOverlay';
 import { AddMemberModal } from './components/AddMemberModal';
 import { AddCourtModal } from './components/AddCourtModal';
 import { ManageProductsModal } from './components/ManageProductsModal';
@@ -116,6 +116,28 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
   // null = วันนี้ยังไม่ได้เลือกรูปแบบก๊วน (จะขึ้นหน้าเลือกโหมด) · เริ่มวันใหม่แล้วกลับเป็น null
   const [sessionMode, setSessionMode] = useState<SessionMode | null>(null);
   const activeMode: SessionMode = sessionMode ?? 'perGame';
+
+  // ── แพ็กเกจ: ขีดจำกัดของบัญชีเจ้าของก๊วน (ผู้เล่นต่อครั้ง · ครั้งต่อเดือน · โหมด) ──
+  const [plan, setPlan] = useState<PlanInfo | null>(null);
+  const [quotaDismissed, setQuotaDismissed] = useState(false);
+  const planAlertRef = useRef<{ msg: string; at: number }>({ msg: '', at: 0 });
+  useEffect(() => { fetchPlan().then(setPlan); }, []);
+  const isTodayPlayer = (m: Member) => ['waiting', 'playing', 'paid'].includes(m.status) || m.gamesPlayed > 0;
+  const quotaReached = !!plan && plan.plan.maxSessionsMonth != null && plan.usage.sessionsThisMonth >= plan.plan.maxSessionsMonth;
+  const quotaMessage = plan ? `แพ็กเกจ "${plan.plan.name}" จัดก๊วนได้ ${plan.plan.maxSessionsMonth} ครั้งต่อเดือน และเดือนนี้ครบโควตาแล้ว` : '';
+  // เพิ่มผู้เล่นวันนี้ได้อีก n คนไหม — ถ้าไม่ได้จะแจ้งเหตุผลให้ผู้ใช้
+  const canAddToday = (n: number) => {
+    if (!plan || n <= 0) return true;
+    if (quotaReached && !sessionStartDate) { alert(quotaMessage + '\nอัปเกรดแพ็กเกจเพื่อจัดก๊วนเพิ่ม'); return false; }
+    const max = plan.plan.maxPlayers;
+    if (max == null) return true;
+    const cur = members.filter(isTodayPlayer).length;
+    if (cur + n > max) {
+      alert(`แพ็กเกจ "${plan.plan.name}" รองรับผู้เล่นสูงสุด ${max} คนต่อครั้ง (ตอนนี้มี ${cur} คน)\nอัปเกรดแพ็กเกจเพื่อเพิ่มจำนวนผู้เล่น`);
+      return false;
+    }
+    return true;
+  };
   const [modeConfig, setModeConfig] = useState<ModeConfig>(DEFAULT_MODE_CONFIG);
   // ค่าลูกต่อลูก/คน ที่ใช้คิดเงินจริง — เฉพาะโหมดคิดตามเกมเท่านั้นที่คิดรายเกม
   const effShuttlePrice = activeMode === 'perGame' ? shuttlePrice : 0;
@@ -246,6 +268,19 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
       if (res.status === 409) {
         console.warn('⚠️ มีการบันทึกข้อมูลจากเครื่อง/แท็บอื่นไปแล้ว — โหลดข้อมูลล่าสุดใหม่เพื่อกันข้อมูลชนกัน');
         location.reload();
+        return;
+      }
+      if (res.status === 403) {
+        const d = await res.clone().json().catch(() => ({}));
+        if (d.error === 'plan_limit') {
+          // ไม่ให้เด้งซ้ำทุกครั้งที่ระบบ auto-save ลองใหม่
+          const last = planAlertRef.current;
+          if (last.msg !== d.message || Date.now() - last.at > 60_000) {
+            planAlertRef.current = { msg: d.message, at: Date.now() };
+            alert(`${d.message}\nข้อมูลล่าสุดยังไม่ถูกบันทึก — อัปเกรดแพ็กเกจ หรือลดรายการให้อยู่ในขีดจำกัด`);
+          }
+          fetchPlan().then(setPlan);
+        }
         return;
       }
       if (res.ok) {
@@ -495,6 +530,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
 
   const addMember = (name: string, rank: Rank) => {
     const existing = members.find(m => m.name.toLowerCase() === name.toLowerCase());
+    if (!(existing && isTodayPlayer(existing)) && !canAddToday(1)) return;
 
     // Auto-update rank memory when a member is added manually
     setRankMemory(prev => ({ ...prev, [name]: rank }));
@@ -533,6 +569,8 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
   };
 
   const checkInMember = (memberId: string) => {
+    const target = members.find(m => m.id === memberId);
+    if (target && !isTodayPlayer(target) && !canAddToday(1)) return;
     setMembers(prev => prev.map(m => m.id === memberId
       ? { ...m, status: 'waiting', checkInTime: Date.now() }
       : m));
@@ -1236,6 +1274,11 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
 
 
   const importMembers = (list: { name: string; rank: Rank }[], isSessionImport = false) => {
+    if (isSessionImport) {
+      const todayNames = new Set(members.filter(isTodayPlayer).map(m => m.name.trim().toLowerCase()));
+      const fresh = new Set(list.map(i => i.name.trim().toLowerCase()).filter(n => !todayNames.has(n))).size;
+      if (!canAddToday(fresh)) return;
+    }
     // บันทึกวันเริ่มต้นก๊วนถ้ายังไม่มีและเป็น session import
     if (isSessionImport) setSessionStartDate(prev => prev ?? Date.now());
     const status: Member['status'] = isSessionImport ? 'waiting' : 'resting';
@@ -1345,8 +1388,11 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
         {isInitialLoading && <SplashScreen key="splash" groupName={groupName} />}
       </AnimatePresence>
       {!isInitialLoading && needsName && <GroupNameSetup onSave={onRename} />}
-      {!isInitialLoading && !needsName && sessionMode === null && (
-        <ModePicker initialConfig={modeConfig} onPick={(m, cfg) => { setModeConfig(prev => ({ ...prev, ...cfg })); setSessionMode(m); }} />
+      {!isInitialLoading && !needsName && sessionMode === null && quotaReached && !sessionStartDate && !quotaDismissed && (
+        <QuotaBlock message={quotaMessage} onDismiss={() => setQuotaDismissed(true)} onLogout={logout} />
+      )}
+      {!isInitialLoading && !needsName && sessionMode === null && !(quotaReached && !sessionStartDate && !quotaDismissed) && (
+        <ModePicker allowedModes={plan?.plan.modes} initialConfig={modeConfig} onPick={(m, cfg) => { setModeConfig(prev => ({ ...prev, ...cfg })); setSessionMode(m); }} />
       )}
 
       {/* Next Queue Prompt Overlay */}
@@ -1654,6 +1700,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                 )}
                 {activeTab === 'settings' && (
                   <SettingsTab
+                    plan={plan}
                     courtFeePerPerson={courtFeePerPerson}
                     setCourtFeePerPerson={setCourtFeePerPerson}
                     shuttlePrice={shuttlePrice}

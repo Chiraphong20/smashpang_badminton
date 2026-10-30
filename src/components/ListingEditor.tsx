@@ -53,7 +53,10 @@ export function ListingEditor() {
     try {
       const res = await apiJson('/listing', form, 'PUT');
       if (res.ok) setMessage({ ok: true, text: form.listed ? 'บันทึกแล้ว — ก๊วนของคุณขึ้นในหน้าหาก๊วน' : 'บันทึกแล้ว (ยังไม่เปิดประกาศ)' });
-      else setMessage({ ok: false, text: ERRORS[(await res.json().catch(() => ({}))).error] || 'บันทึกไม่สำเร็จ' });
+      else {
+        const d = await res.json().catch(() => ({}));
+        setMessage({ ok: false, text: (d.error === 'plan_limit' && d.message) || ERRORS[d.error] || 'บันทึกไม่สำเร็จ' });
+      }
     } catch {
       setMessage({ ok: false, text: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้' });
     }

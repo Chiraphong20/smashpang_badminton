@@ -1,5 +1,6 @@
 import express from 'express';
 import { pool } from './db.js';
+import { effectivePlan } from './plans.js';
 
 // หน้า "หาก๊วน" — เจ้าของก๊วนเปิดประกาศรับสมาชิกได้ (วัน/เวลา/สถานที่/ระดับมือ)
 // ข้อมูลสาธารณะไม่ส่ง id (รหัสเข้าก๊วน) ออกไป — คนที่สนใจติดต่อผ่านช่องทางที่เจ้าของก๊วนใส่ไว้
@@ -104,6 +105,12 @@ export function mountGroupListing(r) {
       return res.status(400).json({ error: 'listing_incomplete' });
     }
     try {
+      if (v.listed) {
+        const [[g]] = await pool.query('SELECT owner_id FROM `groups` WHERE id = ?', [req.params.gid]);
+        if (!(await effectivePlan(g?.owner_id)).plan.features.listing) {
+          return res.status(403).json({ error: 'plan_limit', message: 'แพ็กเกจของคุณไม่รองรับการเปิดประกาศหาสมาชิก' });
+        }
+      }
       await pool.query(
         `INSERT INTO group_listings (group_id, listed, description, venue, area, map_url, schedule, levels, price, contact, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

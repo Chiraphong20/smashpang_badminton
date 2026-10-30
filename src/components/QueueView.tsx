@@ -17,6 +17,7 @@ export function QueueView() {
   const [state, setState] = useState<AppState | null>(null);
   const [now, setNow] = useState(new Date());
   const [lastSync, setLastSync] = useState(new Date());
+  const [blocked, setBlocked] = useState('');
 
   const load = async () => {
     try {
@@ -24,6 +25,8 @@ export function QueueView() {
       if (res.ok) {
         setState(await res.json());
         setLastSync(new Date());
+      } else if (res.status === 403) {
+        setBlocked((await res.json().catch(() => ({}))).message || 'ก๊วนนี้ไม่เปิดใช้หน้าคิวสาธารณะ');
       }
     } catch {}
   };
@@ -34,6 +37,14 @@ export function QueueView() {
     const clockIv = setInterval(() => setNow(new Date()), 1000);
     return () => { clearInterval(syncIv); clearInterval(clockIv); };
   }, []);
+
+  if (!state && blocked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <p className="font-bold text-on-surface/50 text-center">{blocked}</p>
+      </div>
+    );
+  }
 
   if (!state) {
     return (

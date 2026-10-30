@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowRight, Check, Pencil } from 'lucide-react';
 import { SessionMode, ModeConfig, MODE_LABELS, MODE_THEME } from '../types';
+import { cn } from '../lib/utils';
 import { DAY_NAMES, ListingSlot } from '../lib/api';
 
 const MODES = Object.keys(MODE_LABELS) as SessionMode[];
@@ -78,9 +79,28 @@ const MODE_SHORT: Record<SessionMode, string> = {
   fun: 'สุ่มจับคู่เล่นสนุก ไม่มีการคิดเงิน',
 };
 
+// ครบโควตาจำนวนครั้งที่จัดก๊วนต่อเดือนของแพ็กเกจ — กันไม่ให้เริ่มวันใหม่ (ดูข้อมูลย้อนหลังได้ตามปกติ)
+export function QuotaBlock({ message, onDismiss, onLogout }: { message: string; onDismiss: () => void; onLogout: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[450] bg-primary/80 backdrop-blur-sm flex items-center justify-center p-6">
+      <div className="bg-white rounded-[2rem] w-full max-w-md p-7 text-center space-y-4 shadow-2xl">
+        <div className="text-5xl">🔒</div>
+        <h2 className="font-headline font-black text-2xl text-primary">ครบโควตาเดือนนี้แล้ว</h2>
+        <p className="text-sm text-on-surface/60 font-semibold">{message}</p>
+        <p className="text-xs text-on-surface/40">อัปเกรดแพ็กเกจเพื่อจัดก๊วนเพิ่ม หรือรอเริ่มเดือนใหม่ ดูข้อมูลย้อนหลังและสถิติได้ตามปกติ</p>
+        <div className="flex gap-3 pt-1">
+          <button onClick={onLogout} className="flex-1 py-3 rounded-xl bg-background font-black text-sm text-on-surface/60">ออกจากระบบ</button>
+          <button onClick={onDismiss} className="flex-[2] py-3 rounded-xl bg-primary text-white font-black text-sm">ดูข้อมูลย้อนหลัง</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // เลือกรูปแบบก๊วนของวันนี้ — เปิดให้เลือกได้ทั้ง 4 โหมด แต่ละโหมดมีสีและตัวการ์ตูนประจำตัว
-export function ModePicker({ initialConfig, onPick }: { initialConfig: ModeConfig; onPick: (mode: SessionMode, config: Partial<ModeConfig>) => void }) {
-  const [selected, setSelected] = useState<SessionMode>('perGame');
+export function ModePicker({ initialConfig, onPick, allowedModes }: { initialConfig: ModeConfig; onPick: (mode: SessionMode, config: Partial<ModeConfig>) => void; allowedModes?: SessionMode[] }) {
+  const isAllowed = (m: SessionMode) => !allowedModes || allowedModes.includes(m);
+  const [selected, setSelected] = useState<SessionMode>(() => MODES.find(isAllowed) ?? 'perGame');
   const [buffetPrice, setBuffetPrice] = useState(initialConfig.buffetPrice);
   const theme = MODE_THEME[selected];
 
@@ -98,16 +118,17 @@ export function ModePicker({ initialConfig, onPick }: { initialConfig: ModeConfi
               {MODES.map(m => {
                 const t = MODE_THEME[m];
                 const on = selected === m;
+                const locked = !isAllowed(m);
                 return (
-                  <button key={m} onClick={() => setSelected(m)} aria-pressed={on}
-                    className="relative flex items-center gap-3 text-left rounded-2xl p-3 pr-2 border-2 transition-all hover:shadow-md active:scale-[0.99] overflow-hidden"
+                  <button key={m} onClick={() => !locked && setSelected(m)} aria-pressed={on} disabled={locked} title={locked ? 'แพ็กเกจของคุณยังไม่รองรับโหมดนี้' : undefined}
+                    className={cn('relative flex items-center gap-3 text-left rounded-2xl p-3 pr-2 border-2 transition-all hover:shadow-md active:scale-[0.99] overflow-hidden', locked && 'opacity-45 grayscale cursor-not-allowed hover:shadow-none')}
                     style={{ borderColor: on ? t.color : '#e5e7eb', backgroundColor: on ? t.soft : '#fff' }}>
                     <span className="w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center" style={{ borderColor: t.color, backgroundColor: on ? t.color : 'transparent' }}>
                       {on && <Check size={14} className="text-white" strokeWidth={4} />}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block font-headline font-black text-lg leading-tight" style={{ color: t.color }}>{MODE_LABELS[m]}</span>
-                      <span className="block text-[11px] leading-snug text-on-surface/60">{MODE_SHORT[m]}</span>
+                      <span className="block font-headline font-black text-lg leading-tight" style={{ color: t.color }}>{MODE_LABELS[m]}{locked && <span className="ml-1.5 text-xs">🔒</span>}</span>
+                      <span className="block text-[11px] leading-snug text-on-surface/60">{locked ? 'อัปเกรดแพ็กเกจเพื่อใช้โหมดนี้' : MODE_SHORT[m]}</span>
                     </span>
                     <img src={`/modes/${m}-mascot.webp`} alt="" className="w-14 h-14 object-contain shrink-0 hidden sm:block" draggable={false} />
                   </button>

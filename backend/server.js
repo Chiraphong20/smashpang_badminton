@@ -5,6 +5,7 @@ import { ensureSchema } from './schema.js';
 import { hashPin, verifyPin, issueToken, requireGroupAuth, loginThrottle, recordLoginResult } from './auth.js';
 import { auth, me, admin, publicConfig } from './users.js';
 import { listings, mountGroupListing } from './listings.js';
+import { ensurePlans, gateState, mountGroupPlan, effectivePlan } from './plans.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -77,8 +78,11 @@ pub.post('/login', loginThrottle, async (req, res) => {
 pub.get('/queue', async (req, res) => {
   const gid = req.params.gid;
   try {
-    const [groupRows] = await pool.query('SELECT name FROM `groups` WHERE id = ?', [gid]);
+    const [groupRows] = await pool.query('SELECT name, owner_id FROM `groups` WHERE id = ?', [gid]);
     if (groupRows.length === 0) return res.status(404).json({ error: 'group_not_found' });
+    if (!(await effectivePlan(groupRows[0].owner_id)).plan.features.queueScreen) {
+      return res.status(403).json({ error: 'plan_limit', message: 'แพ็กเกจของก๊วนนี้ไม่รองรับหน้าคิวสาธารณะ' });
+    }
     const [states] = await pool.query(
       "SELECT state_key, state_value FROM system_states WHERE group_id = ? AND state_key IN ('members', 'courts', 'courtQueues')",
       [gid]
@@ -620,6 +624,13 @@ r.get('/state', async (req, res) => {
 r.post('/state', async (req, res) => {
   const gid = req.params.gid;
   const { _version, ...stateObj } = req.body;
+  try {
+    const blocked = await gateState(gid, stateObj);
+    if (blocked) return res.status(403).json({ error: 'plan_limit', ...blocked });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'server_error' });
+  }
   const conn = await pool.getConnection();
 
   try {
@@ -666,6 +677,7 @@ r.post('/state', async (req, res) => {
 
 // ตั้ง/เปลี่ยนชื่อก๊วน (ตั้งครั้งแรกตอนเข้าก๊วนที่เพิ่งสร้าง)
 mountGroupListing(r);
+mountGroupPlan(r);
 
 r.put('/name', async (req, res) => {
   const name = String(req.body?.name || '').trim();
@@ -747,6 +759,7 @@ app.get('*', (req, res) => {
 });
 
 ensureSchema()
+  .then(() => ensurePlans())
   .then(() => {
     app.listen(port, '0.0.0.0', () => {
       console.log(`🚀 SmashPang Multi-Group Server running on port ${port}`);

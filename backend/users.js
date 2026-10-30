@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import express from 'express';
 import { pool } from './db.js';
 import { hashPin, verifyPin, issueToken, issueUserToken, hashSecret, userIdFromRequest } from './auth.js';
+import { effectivePlan, usageFor, mountAdminPlans, monthStartMs } from './plans.js';
 
 // ───────────────────────── ตั้งค่า (.env) ─────────────────────────
 // ADMIN_EMAIL : อีเมลที่สมัครแล้วจะได้เป็นแอดมินระบบ — ไม่มีการยืนยันอีเมลแล้ว จึงควรสมัครบัญชีนี้เป็นคนแรกทันทีหลังติดตั้ง
@@ -126,6 +127,11 @@ me.post('/groups', wrap(async (req, res) => {
   if (typeof id !== 'string' || !GROUP_ID_RE.test(id)) return res.status(400).json({ error: 'invalid_id' });
   if (typeof pin !== 'string' || !PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
 
+  const { plan } = await effectivePlan(req.user.id);
+  if (plan.maxGroups != null && (await usageFor(req.user.id)).groups >= plan.maxGroups) {
+    return res.status(403).json({ error: 'plan_limit', message: `แพ็กเกจ "${plan.name}" สร้างก๊วนได้สูงสุด ${plan.maxGroups} ก๊วน` });
+  }
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -170,9 +176,14 @@ admin.get('/overview', wrap(async (req, res) => {
 
 admin.get('/users', wrap(async (req, res) => {
   const [rows] = await pool.query(
-    'SELECT u.*, (SELECT COUNT(*) FROM `groups` g WHERE g.owner_id = u.id) AS group_count FROM users u ORDER BY u.created_at DESC'
+    'SELECT u.*, (SELECT COUNT(*) FROM `groups` g WHERE g.owner_id = u.id) AS group_count, ' +
+    '(SELECT COUNT(*) FROM session_usage s WHERE s.owner_id = u.id AND s.started_at >= ?) AS sessions_month FROM users u ORDER BY u.created_at DESC',
+    [monthStartMs()]
   );
-  res.json(rows.map(u => ({ ...userDto(u), groupCount: Number(u.group_count), createdAt: Number(u.created_at) })));
+  res.json(rows.map(u => ({
+    ...userDto(u), groupCount: Number(u.group_count), createdAt: Number(u.created_at),
+    planId: u.plan_id || null, planExpiresAt: u.plan_expires_at == null ? null : Number(u.plan_expires_at), sessionsThisMonth: Number(u.sessions_month),
+  })));
 }));
 
 // active = ยืนยันให้ด้วยมือ (กรณีอีเมลไม่ถึง) / ปลดระงับ · suspended = ระงับ
@@ -191,6 +202,8 @@ admin.delete('/users/:id', wrap(async (req, res) => {
   await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
   res.json({ ok: true });
 }));
+
+mountAdminPlans(admin, wrap);
 
 admin.get('/groups', wrap(async (req, res) => {
   const [rows] = await pool.query(
