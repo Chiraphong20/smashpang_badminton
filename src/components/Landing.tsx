@@ -60,7 +60,7 @@ export function Landing() {
             <a href="#features" className="hidden md:block text-gray-500 hover:text-gray-900">ฟีเจอร์</a>
             <a href="?find" className="text-gray-500 hover:text-gray-900">หาก๊วน</a>
             <a href="?account" className="text-gray-500 hover:text-gray-900">เจ้าของก๊วน</a>
-            <a href="?join" className="px-5 py-2.5 rounded-xl bg-primary text-white hover:brightness-110">เข้าก๊วน</a>
+            <a href="?join" className="px-5 py-2.5 rounded-xl bg-primary text-white hover:brightness-110">เข้าสู่ระบบ</a>
           </div>
         </div>
       </nav>
@@ -75,7 +75,7 @@ export function Landing() {
             จัดคอร์ท คิดเงิน นับเกม ดูอันดับ ครบในที่เดียว รองรับทุกรูปแบบก๊วน ไม่ว่าจะคิดตามเกม บุฟเฟต์ หารเท่า หรือสุ่มเพื่อนตีเฮฮา
           </p>
           <div className="flex flex-wrap gap-3">
-            <a href="?join" className="inline-flex items-center gap-2 px-7 py-4 rounded-xl bg-primary text-white font-headline font-black hover:brightness-110">เข้าก๊วนของคุณ <ArrowRight size={18} /></a>
+            <a href="?join" className="inline-flex items-center gap-2 px-7 py-4 rounded-xl bg-primary text-white font-headline font-black hover:brightness-110">เข้าสู่ระบบ / สมัครใช้งาน <ArrowRight size={18} /></a>
             <a href="?find" className="inline-flex items-center px-7 py-4 rounded-xl border-2 border-gray-200 font-headline font-black text-gray-700 hover:bg-gray-50">หาก๊วนตีแบด</a>
           </div>
           <p className="text-sm text-gray-400">เป็นเจ้าของก๊วน? <a href="?account" className="font-black text-primary hover:underline">สมัครสมาชิก / เข้าสู่ระบบ</a></p>
@@ -192,7 +192,7 @@ export function Landing() {
             {MODES.map(m => <img key={m} src={`/modes/${m}-mascot.webp`} alt="" draggable={false} className="w-20 h-20 sm:w-24 sm:h-24 object-contain drop-shadow-lg" />)}
           </div>
           <h2 className="font-headline font-black text-3xl md:text-4xl">พร้อมเปิดก๊วนของคุณหรือยัง?</h2>
-          <p className="opacity-80">สมัครด้วยอีเมล + Username + รหัสผ่าน (ไม่ต้องยืนยันอีเมล) สร้างก๊วนด้วยรหัสกับ PIN แล้วตั้งชื่อและเลือกโหมดข้างในระบบได้เลย</p>
+          <p className="opacity-80">สมัครด้วยอีเมล + Username + รหัสผ่าน (ไม่ต้องยืนยันอีเมล) สร้างก๊วนด้วยรหัสก๊วน แล้วตั้งชื่อและเลือกโหมดข้างในระบบได้เลย</p>
           <a href="?account" className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-primary font-headline font-black hover:brightness-95">สมัครเป็นเจ้าของก๊วน <ArrowRight size={18} /></a>
         </div>
       </section>

@@ -85,7 +85,7 @@ export function ListingEditor() {
           เปิดประกาศ
         </label>
       </div>
-      <p className="text-xs text-on-surface/50">แสดงในหน้า "หาก๊วน" ให้นักแบดที่อยากหาที่ตีค้นเจอ — ไม่เผยรหัสก๊วนหรือ PIN</p>
+      <p className="text-xs text-on-surface/50">แสดงในหน้า "หาก๊วน" ให้นักแบดที่อยากหาที่ตีค้นเจอ — ไม่เผยรหัสก๊วนของคุณ</p>
 
       <div className="grid md:grid-cols-2 gap-4">
         <input className={input} placeholder="สถานที่ เช่น สนามแบด ABC *" maxLength={150} value={form.venue} onChange={e => set('venue', e.target.value)} />

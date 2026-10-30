@@ -63,21 +63,6 @@ export async function fetchGroupInfo(gid: string): Promise<{ id: string; name: s
   } catch { return null; }
 }
 
-export async function login(gid: string, pin: string): Promise<'ok' | 'wrong' | 'locked' | 'error'> {
-  try {
-    const res = await fetch(`${API_BASE}/api/g/${encodeURIComponent(gid)}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin }),
-    });
-    if (res.status === 429) return 'locked';
-    if (res.status === 401) return 'wrong';
-    if (!res.ok) return 'error';
-    setToken(gid, (await res.json()).token);
-    return 'ok';
-  } catch { return 'error'; }
-}
-
 // ───────────────────────── บัญชีผู้ใช้ (เจ้าของก๊วน / แอดมินระบบ) ─────────────────────────
 export interface Me { id: string; email: string | null; username: string | null; displayName: string; role: 'owner' | 'admin'; status: string }
 export interface MyGroup { id: string; name: string; status: string; createdAt: number }

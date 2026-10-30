@@ -123,9 +123,8 @@ me.get('/groups', wrap(async (req, res) => {
 
 // สร้างก๊วน (ต้องเป็นสมาชิกที่ยืนยันแล้ว) — รูปแบบก๊วนเลือกในระบบตอนเริ่มแต่ละวัน
 me.post('/groups', wrap(async (req, res) => {
-  const { id, pin } = req.body || {};
+  const { id } = req.body || {};
   if (typeof id !== 'string' || !GROUP_ID_RE.test(id)) return res.status(400).json({ error: 'invalid_id' });
-  if (typeof pin !== 'string' || !PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
 
   const { plan } = await effectivePlan(req.user.id);
   if (plan.maxGroups != null && (await usageFor(req.user.id)).groups >= plan.maxGroups) {
@@ -140,7 +139,8 @@ me.post('/groups', wrap(async (req, res) => {
     await conn.query(
       'INSERT INTO `groups` (id, name, pin_hash, pin_length, created_at, owner_id) VALUES (?, ?, ?, ?, ?, ?)',
       // ชื่อก๊วนตั้งในระบบตอนเข้าครั้งแรก — ระหว่างนั้นใช้รหัสก๊วนเป็นชื่อชั่วคราว
-      [id, id, hashPin(pin), pin.length, Date.now(), req.user.id]
+      // ไม่ใช้ PIN แล้ว — คอลัมน์ pin_hash ยังเป็น NOT NULL จึงใส่ค่าสุ่มที่ไม่มีใครรู้
+      [id, id, hashPin(crypto.randomBytes(16).toString('hex')), 4, Date.now(), req.user.id]
     );
     await conn.query('INSERT INTO settings (group_id) VALUES (?)', [id]);
     await conn.query('INSERT INTO state_meta (group_id, version) VALUES (?, 0)', [id]);
@@ -213,11 +213,10 @@ admin.get('/groups', wrap(async (req, res) => {
 }));
 
 admin.patch('/groups/:id', wrap(async (req, res) => {
-  const { status, name, pin } = req.body || {};
+  const { status, name } = req.body || {};
   const sets = []; const vals = [];
   if (status !== undefined) { if (!['active', 'suspended'].includes(status)) return res.status(400).json({ error: 'invalid_status' }); sets.push('status = ?'); vals.push(status); }
   if (name !== undefined) { if (typeof name !== 'string' || !name.trim() || name.length > 100) return res.status(400).json({ error: 'invalid_name' }); sets.push('name = ?'); vals.push(name.trim()); }
-  if (pin !== undefined) { if (!PIN_RE.test(String(pin))) return res.status(400).json({ error: 'invalid_pin' }); sets.push('pin_hash = ?', 'pin_length = ?'); vals.push(hashPin(String(pin)), String(pin).length); }
   if (sets.length === 0) return res.status(400).json({ error: 'nothing_to_update' });
   const [r] = await pool.query(`UPDATE \`groups\` SET ${sets.join(', ')} WHERE id = ?`, [...vals, req.params.id]);
   if (r.affectedRows === 0) return res.status(404).json({ error: 'group_not_found' });

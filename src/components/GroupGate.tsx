@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { AuthPage } from './AuthPage';
-import { AuthShell, Stepper, authField, authPrimary, authGhost } from './AuthShell';
+import { AuthShell, authField, authPrimary, authGhost } from './AuthShell';
 import {
-  Me, MyGroup, fetchGroupInfo, getRecentGroups, groupUrl, getUserToken, setUserToken, clearUserToken,
+  Me, MyGroup, groupUrl, getUserToken, setUserToken, clearUserToken,
   userApi, enterGroupAsOwner,
 } from '../lib/api';
 
@@ -29,17 +29,10 @@ const ERRORS: Record<string, string> = {
 const err = (code?: string) => ERRORS[code || ''] || 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง';
 
 export function GroupGate({ notFoundId }: Props) {
-  const [tab, setTab] = useState<'join' | 'account'>('join');
-  const [code, setCode] = useState(notFoundId || '');
-  const [joinError, setJoinError] = useState(notFoundId ? `ไม่พบก๊วนรหัส "${notFoundId}"` : '');
-  const [busy, setBusy] = useState(false);
-
   const [me, setMe] = useState<Me | null>(null);
   const [myGroups, setMyGroups] = useState<MyGroup[]>([]);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState(notFoundId ? `ไม่พบก๊วนรหัส "${notFoundId}"` : '');
   const [checking, setChecking] = useState(() => !!getUserToken());
-
-  const recent = getRecentGroups();
 
   const loadAccount = async () => {
     try { await loadAccountInner(); } finally { setChecking(false); }
@@ -57,73 +50,29 @@ export function GroupGate({ notFoundId }: Props) {
     const verify = new URLSearchParams(window.location.search).get('verify');
     (async () => {
       if (verify) {
-        setTab('account');
+        // ลิงก์ยืนยันอีเมลเก่า (ก่อนยกเลิกขั้นตอนยืนยัน) ยังใช้ได้
         const r = await userApi<{ token: string; error?: string }>('/auth/verify', 'POST', { token: verify });
         history.replaceState(null, '', window.location.pathname);
-        if (r.ok) { setUserToken(r.data.token); setNotice('ยืนยัน Gmail สำเร็จ ยินดีต้อนรับ! 🎉'); }
+        if (r.ok) { setUserToken(r.data.token); setNotice('ยืนยันบัญชีสำเร็จ ยินดีต้อนรับ! 🎉'); }
         else setNotice(err(r.data.error));
-      } else if (getUserToken() || new URLSearchParams(window.location.search).has('account')) {
-        setTab('account');
       }
       loadAccount();
     })();
   }, []);
 
-  const join = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const id = code.trim().toLowerCase();
-    if (!id) return;
-    setBusy(true);
-    setJoinError('');
-    const info = await fetchGroupInfo(id);
-    setBusy(false);
-    if (!info) { setJoinError(`ไม่พบก๊วนรหัส "${id}"`); return; }
-    location.href = groupUrl(id);
-  };
-
-  // ยังไม่ได้ล็อกอิน → หน้าเข้าสู่ระบบ/สมัครสมาชิกแบบเต็มหน้า (step by step)
-  if (tab === 'account' && !me && checking) return <div className="fixed inset-0 bg-white" />;
-  if (tab === 'account' && !me) {
-    return <AuthPage notice={notice} onBack={() => setTab('join')} onDone={() => { setNotice(''); loadAccount(); }} />;
+  // ยังไม่ได้ล็อกอิน → หน้าเข้าสู่ระบบ/สมัครสมาชิก
+  if (!me && checking) return <div className="fixed inset-0 bg-white" />;
+  if (!me) {
+    return <AuthPage notice={notice} onBack={() => { location.href = window.location.pathname; }} onDone={() => { setNotice(''); loadAccount(); }} />;
   }
 
   return (
     <AuthShell
-      topRight={tab === 'join'
-        ? <><a href="?find" className="mr-4 font-black text-primary hover:underline">หาก๊วนตีแบด</a><span className="mr-3">สำหรับเจ้าของก๊วน</span><button onClick={() => setTab('account')} className="font-black text-primary hover:underline">เข้าสู่ระบบ</button></>
-        : <button onClick={() => setTab('join')} className="font-black text-primary hover:underline">← เข้าก๊วน</button>}
+      topLeft={<a href={window.location.pathname} className="text-sm font-bold text-gray-500 hover:text-gray-900">← หน้าแรก</a>}
+      topRight={<a href="?find" className="font-black text-primary hover:underline">หาก๊วนตีแบด</a>}
     >
-      {tab === 'join' ? (
-        <form onSubmit={join} className="space-y-6">
-          <div className="space-y-4 text-center">
-            <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 text-primary flex items-center justify-center text-3xl">👥</div>
-            <h2 className="font-headline font-black text-3xl text-gray-900">เข้าก๊วนของคุณ</h2>
-            <p className="text-gray-500 text-sm">กรอกรหัสก๊วน แล้วไปสนุกด้วยกัน</p>
-          </div>
-          <Stepper steps={['รหัสก๊วน', 'ยืนยัน PIN']} current={1} />
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-gray-700">รหัสก๊วน</label>
-            <input autoFocus className={authField} placeholder="เช่น SMASH01" value={code} onChange={e => setCode(e.target.value)} autoCapitalize="none" autoCorrect="off" />
-          </div>
-          {joinError && <p className="text-sm font-bold text-red-500">{joinError}</p>}
-          <button disabled={busy || !code.trim()} className={authPrimary}>{busy ? 'กำลังตรวจสอบ...' : 'ถัดไป →'}</button>
-          <p className="text-center text-xs text-gray-400">ขอรหัสก๊วนได้จากผู้ดูแลก๊วนของคุณ</p>
-          {recent.length > 0 && (
-            <div className="space-y-2 pt-2">
-              <p className="text-xs font-bold text-gray-400">ก๊วนที่เคยเข้า</p>
-              {recent.map(g => (
-                <a key={g.id} href={groupUrl(g.id)} className="flex items-center justify-between px-5 py-3 border-2 border-gray-100 hover:border-primary/40 hover:bg-primary/5 rounded-xl transition-all">
-                  <span className="font-bold text-gray-900 truncate">{g.name}</span>
-                  <span className="text-xs font-semibold text-gray-400 ml-3 shrink-0">{g.id}</span>
-                </a>
-              ))}
-            </div>
-          )}
-        </form>
-      ) : me ? (
-        <OwnerArea me={me} myGroups={myGroups} notice={notice}
-          onReload={loadAccount} onLogout={() => { clearUserToken(); setMe(null); setMyGroups([]); }} />
-      ) : null}
+      <OwnerArea me={me} myGroups={myGroups} notice={notice}
+        onReload={loadAccount} onLogout={() => { clearUserToken(); setMe(null); setMyGroups([]); }} />
     </AuthShell>
   );
 }
@@ -134,7 +83,6 @@ function OwnerArea({ me, myGroups, notice, onReload, onLogout }: {
 }) {
   const [creating, setCreating] = useState(false);
   const [id, setId] = useState('');
-  const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -147,7 +95,7 @@ function OwnerArea({ me, myGroups, notice, onReload, onLogout }: {
     e.preventDefault();
     setBusy(true); setError('');
     const gid = id.trim().toLowerCase();
-    const r = await userApi<{ error?: string; message?: string }>('/me/groups', 'POST', { id: gid, pin });
+    const r = await userApi<{ error?: string; message?: string }>('/me/groups', 'POST', { id: gid });
     setBusy(false);
     if (!r.ok) { setError((r.data.error === 'plan_limit' && r.data.message) || err(r.data.error)); return; }
     await enter(gid);
@@ -191,17 +139,13 @@ function OwnerArea({ me, myGroups, notice, onReload, onLogout }: {
         <form onSubmit={create} className="space-y-5">
           <div className="space-y-1">
             <input autoFocus className={authField} placeholder="รหัสก๊วน (a-z, 0-9, -) เช่น tue-club" value={id} onChange={e => setId(e.target.value)} autoCapitalize="none" autoCorrect="off" maxLength={30} />
-            <p className="text-xs text-gray-400 ml-1">สมาชิกใช้รหัสนี้เข้าก๊วน</p>
-          </div>
-          <div className="space-y-1">
-            <input className={authField} type="password" inputMode="numeric" placeholder="PIN เข้าก๊วน 4–8 หลัก" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
-            <p className="text-xs text-gray-400 ml-1">ผู้ช่วยใช้ PIN เข้าก๊วน — คุณเข้าได้เลยไม่ต้องใช้ PIN</p>
+            <p className="text-xs text-gray-400 ml-1">ใช้เป็นลิงก์ก๊วน เช่น ?g=รหัสก๊วน (เข้าก๊วนด้วยบัญชีของคุณ)</p>
           </div>
           <p className="text-xs text-gray-400">ตั้งชื่อก๊วนและเลือกรูปแบบก๊วน (4 โหมด) ข้างในระบบ ตอนเข้าครั้งแรก</p>
           {error && <p className="text-sm font-bold text-red-500">{error}</p>}
           <div className="flex gap-3">
             <button type="button" className={authGhost} onClick={() => { setCreating(false); onReload(); }}>ยกเลิก</button>
-            <button disabled={busy || !id.trim() || pin.length < 4} className={authPrimary}>{busy ? 'กำลังสร้าง...' : 'สร้างก๊วน'}</button>
+            <button disabled={busy || !id.trim()} className={authPrimary}>{busy ? 'กำลังสร้าง...' : 'สร้างก๊วน'}</button>
           </div>
         </form>
       )}

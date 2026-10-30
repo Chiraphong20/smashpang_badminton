@@ -137,7 +137,6 @@ export function AdminPanel() {
                     <td className="p-3"><div className="flex flex-wrap gap-1.5">
                       <button className={btn} onClick={async () => { if (await enterGroupAsOwner(g.id)) location.href = groupUrl(g.id); }}>เข้าก๊วน</button>
                       <button className={btn} onClick={() => { const n = prompt('ชื่อก๊วนใหม่', g.name); if (n && n.trim()) act(`/admin/groups/${g.id}`, 'PATCH', { name: n.trim() }); }}>เปลี่ยนชื่อ</button>
-                      <button className={btn} onClick={() => { const p = prompt('PIN ใหม่ (ตัวเลข 4–8 หลัก)'); if (p) act(`/admin/groups/${g.id}`, 'PATCH', { pin: p }); }}>รีเซ็ต PIN</button>
                       <button className={btn} onClick={() => act(`/admin/groups/${g.id}`, 'PATCH', { status: g.status === 'active' ? 'suspended' : 'active' })}>{g.status === 'active' ? 'ระงับ' : 'ปลดระงับ'}</button>
                       <button className={`${btn} text-red-600`} onClick={() => act(`/admin/groups/${g.id}`, 'DELETE', undefined, `ลบก๊วน "${g.name}" และข้อมูลทั้งหมดถาวร? ย้อนกลับไม่ได้`)}>ลบ</button>
                     </div></td>

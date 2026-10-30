@@ -32,7 +32,6 @@ interface Props {
   onResetDay: () => void;
   onFactoryReset: () => void;
   rankMemory: Record<string, Rank>;
-  onChangePin: (pin: string) => Promise<boolean>;
   onLogout: () => void;
   onSwitchGroup: () => void;
   plan?: PlanInfo | null;
@@ -47,21 +46,10 @@ export function SettingsTab({
   courtFeePerPerson, setCourtFeePerPerson,
   shuttlePrice, setShuttlePrice,
   onSeedMockHistory, onResetDay, onFactoryReset,
-  rankMemory, onChangePin, onLogout, onSwitchGroup, plan, queueUrl,
+  rankMemory, onLogout, onSwitchGroup, plan, queueUrl,
   sessionMode, setSessionMode, modeConfig, setModeConfig
 }: Props) {
   const [copied, setCopied] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [pinSaved, setPinSaved] = useState(false);
-
-  const savePin = async () => {
-    if (pinInput.length < 4) { alert('PIN ต้องมีอย่างน้อย 4 หลัก'); return; }
-    if (!/^\d+$/.test(pinInput)) { alert('PIN ต้องเป็นตัวเลขเท่านั้น'); return; }
-    if (!(await onChangePin(pinInput))) { alert('เปลี่ยน PIN ไม่สำเร็จ ลองใหม่อีกครั้ง'); return; }
-    setPinInput('');
-    setPinSaved(true);
-    setTimeout(() => setPinSaved(false), 2000);
-  };
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(queueUrl)}`;
 
   const copyUrl = () => {
@@ -186,39 +174,7 @@ export function SettingsTab({
         )}
       </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* PIN Section */}
-        <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
-          <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40 flex items-center gap-2">
-            <Lock size={18} className="text-primary" />
-            PIN เข้าสู่ระบบ
-          </h3>
-          <div className="space-y-3">
-            <label className="text-xs font-bold text-on-surface/40 ml-2">PIN ใหม่ ({pinInput.length} หลัก)</label>
-            <div className="flex gap-3">
-              <input
-                type="password"
-                inputMode="numeric"
-                value={pinInput}
-                onChange={e => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                className="flex-1 px-6 py-4 bg-background rounded-2xl font-headline font-black text-3xl tracking-[0.5em] focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all border-none"
-                placeholder="••••"
-              />
-              <button
-                onClick={savePin}
-                className="px-5 py-4 bg-primary text-white rounded-2xl font-bold text-sm shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all shrink-0"
-              >
-                {pinSaved ? <Check size={20} /> : 'บันทึก'}
-              </button>
-            </div>
-            <p className="text-xs text-on-surface/30 ml-2">ตัวเลข 4–8 หลัก · ใช้เมื่อเข้าสู่ระบบครั้งถัดไป</p>
-            <div className="flex gap-3 pt-2">
-              <button onClick={onLogout} className="px-4 py-2 bg-background rounded-xl text-xs font-bold text-on-surface/60 hover:bg-on-surface/10 transition-all">ออกจากระบบ</button>
-              <button onClick={onSwitchGroup} className="px-4 py-2 bg-background rounded-xl text-xs font-bold text-on-surface/60 hover:bg-on-surface/10 transition-all">เปลี่ยนก๊วน</button>
-            </div>
-          </div>
-        </section>
-
+      <div className="grid grid-cols-1 gap-8">
         {/* Pricing Section */}
         <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
           <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40 flex items-center gap-2">

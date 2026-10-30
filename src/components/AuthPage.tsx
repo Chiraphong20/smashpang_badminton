@@ -65,7 +65,7 @@ export function AuthPage({ notice, onBack, onDone }: Props) {
 
   return (
     <AuthShell
-      topLeft={<button onClick={onBack} className="text-sm font-bold text-gray-500 hover:text-gray-900">← เข้าก๊วน</button>}
+      topLeft={<button onClick={onBack} className="text-sm font-bold text-gray-500 hover:text-gray-900">← หน้าแรก</button>}
       topRight={<>
         {flow === 'login' ? 'ยังไม่มีบัญชี?' : 'มีบัญชีแล้ว?'}{' '}
         <button onClick={() => switchFlow(flow === 'login' ? 'register' : 'login')} className="font-black text-primary hover:underline">

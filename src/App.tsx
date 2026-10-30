@@ -6,7 +6,7 @@ import { Member, Court, Rank, RANKS, RANK_COLORS, Snack, PaymentRecord, GameReco
 import { format } from 'date-fns';
 import confetti from 'canvas-confetti';
 
-import { LoginScreen } from './components/LoginScreen';
+import { GroupEntry } from './components/GroupEntry';
 import { GroupGate } from './components/GroupGate';
 import { FindGroups } from './components/FindGroups';
 import { Landing } from './components/Landing';
@@ -52,11 +52,10 @@ const INITIAL_COURTS: Court[] = [
   { id: 'c5', name: 'คอร์ด 5', players: [null, null, null, null], status: 'empty', shuttlecocks: 1 },
 ];
 
-// ตัวเลือกหน้า: ยังไม่เลือกก๊วน → หน้าเลือก/สร้างก๊วน · ?queue → จอคิว · ยังไม่ login → PIN · อื่นๆ → แอปของก๊วน
+// ตัวเลือกหน้า: ยังไม่เลือกก๊วน → หน้าเลือก/สร้างก๊วน · ?queue → จอคิว · ยังไม่ login → เข้าสู่ระบบด้วยบัญชี · อื่นๆ → แอปของก๊วน
 export default function App() {
   const gid = getGroupId();
   const [groupName, setGroupName] = useState<string | null>(null);
-  const [pinLength, setPinLength] = useState(4);
   const [schedule, setSchedule] = useState<ListingSlot[]>([]);
   const [groupMissing, setGroupMissing] = useState(false);
   const [authed, setAuthed] = useState(() => !!getToken(gid));
@@ -67,7 +66,6 @@ export default function App() {
       if (!info) { setGroupMissing(true); return; }
       if (info.suspended) { setGroupMissing(true); return; }
       setGroupName(info.name);
-      setPinLength(info.pinLength);
       setSchedule(info.schedule ?? []);
       rememberGroup({ id: info.id, name: info.name });
     });
@@ -79,11 +77,7 @@ export default function App() {
   if (!gid || groupMissing) return <GroupGate notFoundId={groupMissing ? gid : undefined} />;
   if (isQueueMode()) return <QueueView />;
   if (!groupName) return <div className="min-h-screen bg-on-surface" />;
-  if (!authed) return (
-    <AnimatePresence>
-      <LoginScreen gid={gid} groupName={groupName} schedule={schedule} pinLength={pinLength} onLogin={() => setAuthed(true)} />
-    </AnimatePresence>
-  );
+  if (!authed) return <GroupEntry gid={gid} groupName={groupName} schedule={schedule} onEntered={() => setAuthed(true)} />;
   const renameGroup = async (name: string, slot: ListingSlot | null) => {
     const res = await apiJson('/name', { name }, 'PUT');
     if (!res.ok) return false;
@@ -671,13 +665,6 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
   const factoryReset = () => {
     if (!confirm('!!! คำเตือน !!! คุณแน่ใจหรือไม่ว่าต้องการล้างข้อมูลทั้งหมด? ข้อมูลสมาชิกและประวัติทั้งหมดจะหายไป')) return;
     location.reload();
-  };
-
-  const changePin = async (pin: string): Promise<boolean> => {
-    try {
-      const res = await apiJson('/pin', { pin });
-      return res.ok;
-    } catch { return false; }
   };
 
   // ออกจากระบบทั้งบัญชี: ล้างทั้งโทเคนก๊วนและโทเคนเจ้าของก๊วน แล้วกลับหน้าแรก
@@ -1713,7 +1700,6 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                     onResetDay={resetDay}
                     onFactoryReset={factoryReset}
                     rankMemory={rankMemory}
-                    onChangePin={changePin}
                     onLogout={logout}
                     onSwitchGroup={switchGroup}
                     queueUrl={`${window.location.origin}${groupUrl(getGroupId(), '&queue')}`}

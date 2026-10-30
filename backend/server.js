@@ -59,21 +59,6 @@ pub.get('/info', async (req, res) => {
   }
 });
 
-pub.post('/login', loginThrottle, async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT pin_hash, status FROM `groups` WHERE id = ?', [req.params.gid]);
-    if (rows.length === 0) return res.status(404).json({ error: 'group_not_found' });
-    if (rows[0].status === 'suspended') return res.status(403).json({ error: 'group_suspended' });
-    const ok = verifyPin(String(req.body?.pin ?? ''), rows[0].pin_hash);
-    recordLoginResult(req.throttleKey, ok);
-    if (!ok) return res.status(401).json({ error: 'wrong_pin' });
-    res.json({ token: issueToken(req.params.gid) });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'server_error' });
-  }
-});
-
 // หน้าจอคิว (Queue View) เปิดดูได้โดยไม่ต้อง login — ส่งเฉพาะสิ่งที่จอคิวใช้แสดง
 pub.get('/queue', async (req, res) => {
   const gid = req.params.gid;
@@ -113,18 +98,6 @@ r.use(async (req, res, next) => {
   }
 });
 app.use('/api/g/:gid', r);
-
-r.post('/pin', async (req, res) => {
-  const { pin } = req.body || {};
-  if (typeof pin !== 'string' || !PIN_RE.test(pin)) return res.status(400).json({ error: 'invalid_pin' });
-  try {
-    await pool.query('UPDATE `groups` SET pin_hash = ?, pin_length = ? WHERE id = ?', [hashPin(pin), pin.length, req.params.gid]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'server_error' });
-  }
-});
 
 // PULL MASTER DATA
 r.get('/master', async (req, res) => {
