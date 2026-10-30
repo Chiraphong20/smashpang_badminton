@@ -1,0 +1,44 @@
+# Render Blueprint — รัน backend (Express) ด้วย backend/Dockerfile
+# หน้าเว็บ (Vite) ไปอยู่ที่ Vercel แยกต่างหาก; MySQL ใช้บริการภายนอก (Aiven / Railway / PlanetScale ฯลฯ)
+# ค่าที่ sync: false ต้องไปใส่เองในหน้า Render → Environment (ห้ามใส่ความลับในไฟล์นี้)
+services:
+  - type: web
+    name: smashpang-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_SSL           # MySQL บนคลาวด์ส่วนใหญ่ต้องเป็น true
+        value: "true"
+      - key: TOKEN_SECRET
+        generateValue: true
+      - key: APP_URL          # ลิงก์เว็บบน Vercel เช่น https://xxx.vercel.app
+        sync: false
+      - key: CORS_ORIGIN      # ลิงก์เว็บบน Vercel (ตัวเดียวกับ APP_URL)
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

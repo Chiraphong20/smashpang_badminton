@@ -24,6 +24,9 @@ export const pool = mysql.createPool({
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
   connectTimeout: 20000,
+
+  // MySQL บนคลาวด์ (Aiven, PlanetScale, Railway ฯลฯ) มักบังคับ SSL — ตั้ง DB_SSL=true
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
 });
 
 // ทดสอบการเชื่อมต่อทันทีตอน server เริ่มทำงาน จะได้เห็น error ชัดๆ ใน log ถ้าต่อ DB ไม่ติด
