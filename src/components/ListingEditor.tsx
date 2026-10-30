@@ -63,7 +63,7 @@ export function ListingEditor() {
   if (!loaded) return null;
 
   return (
-    <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-on-surface/5 space-y-6">
+    <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
       <div className="flex items-center justify-between gap-4">
         <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-on-surface/40"><Megaphone size={16} /> ประกาศหาสมาชิก</h3>
         <label className="flex items-center gap-2 cursor-pointer font-bold text-sm">

@@ -10,6 +10,7 @@ import {
   Check,
   Download,
   Lock,
+  LogOut,
 } from 'lucide-react';
 import { ListingEditor } from './ListingEditor';
 import { Rank, SessionMode, ModeConfig, MODE_LABELS, MODE_THEME } from '../types';
@@ -80,7 +81,7 @@ export function SettingsTab({
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto pb-20">
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex items-center gap-4 mb-4 sm:mb-8">
         <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
           <Settings size={24} className="text-primary" />
         </div>
@@ -92,10 +93,24 @@ export function SettingsTab({
 
 
 
+      {/* บัญชี: ออกจากระบบ / เปลี่ยนก๊วน */}
+      <section className="bg-white rounded-[2rem] p-4 sm:p-5 shadow-sm border border-on-surface/5 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="font-headline font-black text-base">บัญชีของคุณ</p>
+          <p className="text-xs font-semibold text-on-surface/50">ออกจากระบบเมื่อใช้เครื่องร่วมกับคนอื่น</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onSwitchGroup} className="flex-1 sm:flex-none px-4 py-3 bg-background rounded-xl text-sm font-black text-on-surface/70 hover:bg-on-surface/10 transition-all whitespace-nowrap">เปลี่ยนก๊วน</button>
+          <button onClick={onLogout} className="flex-1 sm:flex-none px-4 py-3 bg-red-50 border-2 border-red-200 text-red-600 rounded-xl text-sm font-black hover:bg-red-100 transition-all whitespace-nowrap flex items-center justify-center gap-2">
+            <LogOut size={16} /> ออกจากระบบ
+          </button>
+        </div>
+      </section>
+
       <ListingEditor />
 
       {/* Session Mode */}
-      <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-on-surface/5 space-y-5">
+      <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-5">
         <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40">รูปแบบการจัดก๊วน</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {(Object.keys(MODE_LABELS) as SessionMode[]).map(m => (
@@ -144,7 +159,7 @@ export function SettingsTab({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* PIN Section */}
-        <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-on-surface/5 space-y-6">
+        <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
           <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40 flex items-center gap-2">
             <Lock size={18} className="text-primary" />
             PIN เข้าสู่ระบบ
@@ -176,7 +191,7 @@ export function SettingsTab({
         </section>
 
         {/* Pricing Section */}
-        <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-on-surface/5 space-y-6">
+        <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
           <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40 flex items-center gap-2">
             <TrendingUp size={18} className="text-primary" />
             ราคาและค่าบริการ
@@ -205,7 +220,7 @@ export function SettingsTab({
       </div>
 
       {/* System Maintenance Section */}
-      <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-on-surface/5 space-y-6">
+      <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
         <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40">การจัดการระบบ</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <button onClick={onSeedMockHistory} 
@@ -236,7 +251,7 @@ export function SettingsTab({
       </section>
 
       {/* QR Code Section */}
-      <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-on-surface/5">
+      <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-secondary/10 rounded-2xl flex items-center justify-center">
             <QrCode size={20} className="text-secondary" />
@@ -247,7 +262,7 @@ export function SettingsTab({
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-8">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8">
           <div className="flex flex-col items-center gap-3 shrink-0">
             <div className="bg-white p-3 rounded-2xl border-2 border-on-surface/5 shadow-sm">
               <img
@@ -266,11 +281,11 @@ export function SettingsTab({
             </button>
           </div>
 
-          <div className="flex-1 space-y-4">
+          <div className="w-full min-w-0 flex-1 space-y-4">
             <div>
               <p className="text-xs font-bold text-on-surface/40 mb-2">URL หน้าคิว</p>
-              <div className="flex items-center gap-2 bg-background rounded-2xl px-4 py-3">
-                <p className="text-sm font-semibold text-on-surface/70 flex-1 truncate">{queueUrl}</p>
+              <div className="flex items-center gap-2 bg-background rounded-2xl px-3 sm:px-4 py-3 min-w-0">
+                <p className="text-xs sm:text-sm font-semibold text-on-surface/70 flex-1 min-w-0 truncate">{queueUrl}</p>
                 <button
                   onClick={copyUrl}
                   className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 hover:scale-105 active:scale-95 transition-all"
@@ -291,7 +306,7 @@ export function SettingsTab({
               href={queueUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-secondary/10 text-secondary px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-secondary/20 transition-all"
+              className="flex sm:inline-flex items-center justify-center gap-2 bg-secondary/10 text-secondary px-5 py-3 rounded-xl font-bold text-sm hover:bg-secondary/20 transition-all"
             >
               <QrCode size={16} /> ดูตัวอย่างหน้าคิว →
             </a>

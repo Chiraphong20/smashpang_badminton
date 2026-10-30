@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Users, LayoutDashboard, Trophy, Banknote, UserPlus, Search, ShoppingCart, History, FileText, ChevronLeft, ChevronRight, Menu, Settings, BarChart3 } from 'lucide-react';
+import { Users, LayoutDashboard, Trophy, Banknote, UserPlus, Search, ShoppingCart, History, FileText, ChevronLeft, ChevronRight, Menu, Settings, BarChart3, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { Member, Court, Rank, RANKS, RANK_COLORS, Snack, PaymentRecord, GameRecord, SessionRecord, CourtQueueSlot, QueuePlayer, SessionMode, ModeConfig, DEFAULT_MODE_CONFIG } from './types';
@@ -10,7 +10,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { GroupGate } from './components/GroupGate';
 import { FindGroups } from './components/FindGroups';
 import { Landing } from './components/Landing';
-import { apiFetch, apiJson, getGroupId, getToken, clearToken, isQueueMode, fetchGroupInfo, rememberGroup, groupUrl, formatSlot, ListingSlot } from './lib/api';
+import { apiFetch, apiJson, getGroupId, getToken, clearToken, clearUserToken, isQueueMode, fetchGroupInfo, rememberGroup, groupUrl, formatSlot, ListingSlot } from './lib/api';
 import { DashboardTab } from './components/DashboardTab';
 import { CourtsTab } from './components/CourtsTab';
 import { MembersTab } from './components/MembersTab';
@@ -642,9 +642,12 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
     } catch { return false; }
   };
 
+  // ออกจากระบบทั้งบัญชี: ล้างทั้งโทเคนก๊วนและโทเคนเจ้าของก๊วน แล้วกลับหน้าแรก
   const logout = () => {
+    if (!confirm('ออกจากระบบใช่ไหม?')) return;
     clearToken();
-    location.reload();
+    clearUserToken();
+    location.href = window.location.pathname;
   };
 
   const switchGroup = () => {
@@ -1495,6 +1498,14 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                 isSidebarCollapsed ? "justify-center p-3.5" : "gap-3.5 px-4 py-3")}>
               <ShoppingCart size={20} className="shrink-0" />
               {!isSidebarCollapsed && <span>จัดการสินค้า</span>}
+            </button>
+
+            <button onClick={logout}
+              title={isSidebarCollapsed ? "ออกจากระบบ" : ""}
+              className={cn("w-full flex items-center text-white/75 font-semibold text-[15px] hover:bg-red-500/30 hover:text-white rounded-xl transition-colors",
+                isSidebarCollapsed ? "justify-center p-3.5" : "gap-3.5 px-4 py-3")}>
+              <LogOut size={20} className="shrink-0" />
+              {!isSidebarCollapsed && <span>ออกจากระบบ</span>}
             </button>
 
 
