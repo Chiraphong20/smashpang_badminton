@@ -797,7 +797,7 @@ export function DashboardTab({
 
       <div className="grid xl:grid-cols-[minmax(0,1fr)_20rem] gap-4 items-start">
       {/* ── Main Player Table ── */}
-      <div className="bg-white rounded-3xl shadow-sm border border-on-surface/5 overflow-hidden">
+      <div className="@container bg-white rounded-3xl shadow-sm border border-on-surface/5 overflow-hidden">
         <div className="px-4 sm:px-6 py-5 border-b border-on-surface/5 space-y-4">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
             <h2 className="font-headline font-black text-xl whitespace-nowrap">ลูกค้าที่เล่นวันนี้</h2>
@@ -865,8 +865,8 @@ export function DashboardTab({
           <p className="hidden lg:block text-[11px] font-semibold text-on-surface/35">↑↓ เลื่อน · Enter ดูข้อมูล · / ขายของ</p>
         </div>
 
-        {/* ── มือถือ: แสดงเป็นการ์ดต่อคน (md ขึ้นไปใช้ตารางด้านล่าง) ── */}
-        <div className="md:hidden p-3 space-y-3">
+        {/* ── พื้นที่แคบ (มือถือ/iPad/มีแผงข้าง): การ์ดต่อคน — กว้างพอ (≥768px ของกล่องนี้) ใช้ตารางด้านล่าง ── */}
+        <div className="@3xl:hidden p-3 space-y-3">
           {!isReadOnly && sortedMembers.some(m => m.balance > 0) && (
             <label className="flex items-center gap-2 px-1 text-xs font-bold text-on-surface/55">
               <input type="checkbox"
@@ -976,7 +976,7 @@ export function DashboardTab({
         </div>
 
         {/* ── md ขึ้นไป: ตาราง ── */}
-        <div className="hidden md:block overflow-x-auto custom-scrollbar">
+        <div className="hidden @3xl:block overflow-x-auto custom-scrollbar">
         <div className="min-w-[760px]">
         {/* Table header */}
         <div className="grid grid-cols-12 gap-2 px-6 py-3 bg-background text-xs font-bold uppercase tracking-wider text-on-surface/45 border-b border-on-surface/5">
