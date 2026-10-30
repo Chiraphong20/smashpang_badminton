@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { format } from 'date-fns';
-import { userApi, getUserToken, enterGroupAsOwner, groupUrl } from '../lib/api';
+import { userApi, getUserToken, setUserToken, clearUserToken, enterGroupAsOwner, groupUrl } from '../lib/api';
 
 interface AUser { id: string; email: string | null; username: string | null; displayName: string; role: string; status: string; groupCount: number; createdAt: number; planId: string | null; planExpiresAt: number | null; sessionsThisMonth: number }
 interface APlan { id: string; name: string; price: string; isDefault: boolean; maxPlayers: number | null; maxSessionsMonth: number | null; maxGroups: number | null; modes: string[]; features: { listing: boolean; queueScreen: boolean }; userCount: number }
@@ -45,14 +45,7 @@ export function AdminPanel() {
   };
 
   if (denied) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
-        <div className="text-center space-y-3">
-          <p className="font-bold">ต้องเข้าสู่ระบบด้วยบัญชีแอดมินระบบ</p>
-          <a href={window.location.pathname} className="inline-block px-5 py-3 bg-primary text-white rounded-xl font-bold text-sm">ไปหน้าเข้าสู่ระบบ</a>
-        </div>
-      </div>
-    );
+    return <AdminLogin hadToken={!!getUserToken()} onLoggedIn={() => { setDenied(false); load(); }} />;
   }
 
   const btn = 'px-3 py-1.5 rounded-lg text-xs font-bold bg-background hover:bg-on-surface/10';
@@ -248,6 +241,44 @@ function PlanEditor({ plan, onClose, onSave }: { plan: APlan | null; onClose: ()
           <button className="flex-[2] py-3 rounded-xl bg-primary text-white font-black text-sm" onClick={save}>บันทึก</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// ฟอร์มล็อกอินของหน้าแอดมิน — ใช้บัญชีที่เป็นแอดมินระบบเท่านั้น
+function AdminLogin({ hadToken, onLoggedIn }: { hadToken: boolean; onLoggedIn: () => void }) {
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(hadToken ? 'บัญชีที่ล็อกอินอยู่ไม่ใช่แอดมินระบบ — เข้าสู่ระบบด้วยบัญชีแอดมิน' : '');
+  const field = 'w-full px-4 py-3 bg-white rounded-xl font-bold border border-on-surface/10 focus:outline-none focus:ring-2 focus:ring-primary/30';
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setError('');
+    const r = await userApi<{ token: string; error?: string }>('/auth/login', 'POST', { identifier: identifier.trim(), password });
+    if (!r.ok) { setBusy(false); setError('Username/อีเมล หรือรหัสผ่านไม่ถูกต้อง'); return; }
+    setUserToken(r.data.token);
+    const check = await userApi('/admin/overview');
+    setBusy(false);
+    if (!check.ok) { clearUserToken(); setError('บัญชีนี้ไม่ใช่แอดมินระบบ'); return; }
+    onLoggedIn();
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <form onSubmit={submit} className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-sm border border-on-surface/5 space-y-4">
+        <div>
+          <h1 className="font-headline font-black text-2xl">แอดมินระบบ</h1>
+          <p className="text-xs font-bold text-on-surface/45">เข้าสู่ระบบด้วยบัญชีแอดมิน</p>
+        </div>
+        <input autoFocus className={field} placeholder="Username หรืออีเมล" value={identifier} onChange={e => setIdentifier(e.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="username" />
+        <input className={field} type="password" placeholder="รหัสผ่าน" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" />
+        {error && <p className="text-sm font-bold text-red-500">{error}</p>}
+        <button disabled={busy || !identifier.trim() || !password} className="w-full py-3.5 rounded-xl bg-primary text-white font-black disabled:opacity-50">{busy ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}</button>
+        <a href={window.location.pathname} className="block text-center text-xs font-bold text-on-surface/40 hover:text-on-surface/70">← กลับหน้าแรก</a>
+      </form>
     </div>
   );
 }
