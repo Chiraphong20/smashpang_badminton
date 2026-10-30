@@ -1,0 +1,22 @@
+# รัน MySQL + backend สำหรับพัฒนา/ทดสอบในเครื่อง:  docker compose up -d --build
+# (frontend: npm run build แล้ว backend จะเสิร์ฟ dist/ ให้ที่ http://localhost:3001)
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: smashpang_multi
+      MYSQL_USER: smashpang
+      MYSQL_PASSWORD: change-me
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  dbdata:
