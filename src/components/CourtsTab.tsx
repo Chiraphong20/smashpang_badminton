@@ -576,6 +576,27 @@ export function CourtsTab({
     else onResetCourt(courtId);
   };
   const [selectedCourtId, setSelectedCourtId] = useState<string | null>(() => (focusCourtId && courts.some(c => c.id === focusCourtId) ? focusCourtId : courts[0]?.id ?? null));
+  // มือถือ: เลือกคอร์ทด้วย dropdown
+  const [courtMenuOpen, setCourtMenuOpen] = useState(false);
+  const courtMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!courtMenuOpen) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      if (courtMenuRef.current && !courtMenuRef.current.contains(e.target as Node)) setCourtMenuOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('touchstart', close);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('touchstart', close); };
+  }, [courtMenuOpen]);
+  const courtLook = (c: Court) => {
+    const filled = c.players.filter(Boolean).length;
+    const active = c.status === 'active';
+    const tone: 'green' | 'orange' | 'gray' = active ? 'orange' : filled > 0 ? 'green' : 'gray';
+    const label = active ? `กำลังเล่น${c.startTime ? ' · ' + format(c.startTime, 'HH:mm') : ''}` : filled > 0 ? `กำลังจัดทีม · ${filled}/4` : 'ว่าง';
+    const box = tone === 'green' ? 'bg-emerald-50 border-emerald-300' : tone === 'orange' ? 'bg-orange-50 border-orange-300' : 'bg-slate-50 border-slate-200';
+    const text = tone === 'orange' ? 'text-orange-600' : tone === 'green' ? 'text-emerald-700' : 'text-on-surface/45';
+    return { tone, label, box, text };
+  };
   useEffect(() => {
     if (focusCourtId && courts.some(c => c.id === focusCourtId)) setSelectedCourtId(focusCourtId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -834,7 +855,55 @@ export function CourtsTab({
       )}
 
       {/* ── Court selector ── */}
-      <div className="flex gap-3 overflow-x-auto snap-x pb-1 -mx-1 px-1 md:flex-wrap md:overflow-visible xl:shrink-0">
+      {/* มือถือ: dropdown เลือกคอร์ท */}
+      <div ref={courtMenuRef} className="md:hidden relative">
+        {(() => {
+          const cur = courts.find(c => c.id === selectedCourtId);
+          if (!cur) {
+            return <button onClick={onAddCourt} className="w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl font-black text-sm border-2 border-dashed border-on-surface/15 text-on-surface/50"><Plus size={18} /> เพิ่มคอร์ท</button>;
+          }
+          const look = courtLook(cur);
+          return (
+            <button onClick={() => setCourtMenuOpen(v => !v)} aria-haspopup="listbox" aria-expanded={courtMenuOpen}
+              className={cn('w-full flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-2xl text-left border-2 ring-4 ring-primary/10', look.box)}>
+              <CourtIcon tone={look.tone} />
+              <div className="min-w-0 flex-1">
+                <p className="font-headline font-black text-xl leading-tight truncate">{cur.name}</p>
+                <p className={cn('text-sm font-bold truncate', look.text)}>{look.label}</p>
+              </div>
+              <span className="text-xs font-bold text-on-surface/40 shrink-0 hidden min-[380px]:block">{courts.length} คอร์ท</span>
+              <ChevronDown size={22} className={cn('text-on-surface/50 shrink-0 transition-transform', courtMenuOpen && 'rotate-180')} />
+            </button>
+          );
+        })()}
+        {courtMenuOpen && (
+          <div role="listbox" className="absolute z-40 left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-on-surface/10 max-h-[60vh] overflow-y-auto p-2 space-y-1.5">
+            {courts.map(c => {
+              const look = courtLook(c);
+              const on = c.id === selectedCourtId;
+              return (
+                <button key={c.id} role="option" aria-selected={on}
+                  onClick={() => { setSelectedCourtId(c.id); setCourtMenuOpen(false); }}
+                  className={cn('w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left border-2 transition-colors', look.box, on ? 'ring-2 ring-primary/30' : 'opacity-90')}>
+                  <CourtIcon tone={look.tone} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-headline font-black text-base leading-tight truncate">{c.name}</p>
+                    <p className={cn('text-xs font-bold truncate', look.text)}>{look.label}</p>
+                  </div>
+                  {on && <Check size={18} className="text-primary shrink-0" strokeWidth={3} />}
+                </button>
+              );
+            })}
+            <button onClick={() => { setCourtMenuOpen(false); onAddCourt(); }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-sm border-2 border-dashed border-on-surface/15 text-on-surface/50 hover:text-primary hover:border-primary/50">
+              <Plus size={16} /> เพิ่มคอร์ท
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* iPad / desktop: การ์ดคอร์ทเรียงแถว */}
+      <div className="hidden md:flex gap-3 flex-wrap xl:shrink-0">
         {courts.map(court => {
           const filled = court.players.filter(Boolean).length;
           const isSel = court.id === selectedCourtId;
