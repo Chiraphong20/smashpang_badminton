@@ -1,0 +1,49 @@
+# รันบน VPS:  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# - app  : backend + หน้าเว็บ ฟังที่ 127.0.0.1:${APP_PORT:-3004} (ให้ nginx ส่งต่อเข้ามา)
+# - db   : MySQL ในเครือข่ายภายใน ไม่เปิดพอร์ตออกนอก
+name: smashpang-multi
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build: .
+    image: smashpang-multi:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      TOKEN_SECRET: ${TOKEN_SECRET}
+      APP_URL: ${APP_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - "127.0.0.1:${APP_PORT:-3004}:3001"
+
+volumes:
+  dbdata:

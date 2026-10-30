@@ -865,7 +865,118 @@ export function DashboardTab({
           <p className="hidden lg:block text-[11px] font-semibold text-on-surface/35">↑↓ เลื่อน · Enter ดูข้อมูล · / ขายของ</p>
         </div>
 
-        <div className="overflow-x-auto custom-scrollbar">
+        {/* ── มือถือ: แสดงเป็นการ์ดต่อคน (md ขึ้นไปใช้ตารางด้านล่าง) ── */}
+        <div className="md:hidden p-3 space-y-3">
+          {!isReadOnly && sortedMembers.some(m => m.balance > 0) && (
+            <label className="flex items-center gap-2 px-1 text-xs font-bold text-on-surface/55">
+              <input type="checkbox"
+                checked={checkedIds.length === sortedMembers.filter(m => m.balance > 0).length && checkedIds.length > 0}
+                onChange={(e) => setCheckedIds(e.target.checked ? sortedMembers.filter(m => m.balance > 0).map(m => m.id) : [])}
+                className="w-4 h-4 rounded border-on-surface/10 text-primary focus:ring-primary/20" />
+              เลือกทุกคนที่ค้างชำระ
+            </label>
+          )}
+          {sortedMembers.length === 0 ? (
+            <div className="py-12 text-center space-y-2">
+              <div className="w-14 h-14 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto text-on-surface/25"><Calendar size={28} /></div>
+              <p className="font-black text-on-surface/40">วันนี้ไม่ได้มีตีเกม</p>
+              <p className="text-xs font-semibold text-on-surface/30">{isReadOnly ? 'ไม่พบประวัติในวันนี้จากเครื่องนี้' : 'ยังไม่มีข้อมูลผู้เล่นในวันนี้'}</p>
+              {isReadOnly && (
+                <button onClick={() => onPullSession(format(viewingSession!.date, 'yyyy-MM-dd'))} disabled={isSyncing}
+                  className="mx-auto mt-2 flex items-center gap-2 px-5 py-2.5 bg-secondary text-white rounded-xl font-black text-xs disabled:opacity-50">
+                  <Cloud size={14} /> {isSyncing ? 'กำลังเชื่อมต่อ...' : 'ดึงประวัติจากฐานข้อมูล'}
+                </button>
+              )}
+            </div>
+          ) : sortedMembers.map(m => {
+            const settled = m.status === 'paid';
+            const court = m.totalCourt || m.courtBalance;
+            const shuttle = m.totalShuttle || m.shuttleBalance;
+            const snack = m.totalSnack || m.snackBalance;
+            const total = court + shuttle + snack;
+            const cells: [string, string, boolean][] = [
+              ['เกม', String(m.gamesPlayed), false],
+              ['ค่าสนาม', court > 0 ? '฿' + court.toFixed(0) : '—', court > 0],
+              ['ค่าลูก', shuttle > 0 ? '฿' + shuttle.toFixed(0) : '—', shuttle > 0],
+              ['สินค้า', snack > 0 ? '฿' + snack.toFixed(0) : '—', snack > 0],
+            ];
+            return (
+              <div key={m.id} onClick={() => setSelectedMemberId(m.id)}
+                className={cn('rounded-2xl border p-3.5 space-y-3 active:scale-[0.99] transition-transform',
+                  settled ? 'bg-green-50 border-green-200' : 'bg-white border-on-surface/10')}>
+                <div className="flex items-center gap-3">
+                  {!isReadOnly && m.balance > 0 && (
+                    <input type="checkbox" checked={checkedIds.includes(m.id)}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => setCheckedIds(prev => e.target.checked ? [...prev, m.id] : prev.filter(id => id !== m.id))}
+                      className="w-5 h-5 rounded border-on-surface/10 text-primary focus:ring-primary/20 shrink-0" />
+                  )}
+                  <div className="relative shrink-0">
+                    <div className={cn('w-11 h-11 rounded-xl flex items-center justify-center font-black text-sm shadow-sm', RANK_COLORS[m.rank])}>{m.rank}</div>
+                    {!isReadOnly && (
+                      <select value={m.rank} onClick={e => e.stopPropagation()}
+                        onChange={e => { e.stopPropagation(); onUpdateRank(m.id, e.target.value as Rank); }}
+                        className="absolute inset-0 opacity-0 w-full h-full" title="เปลี่ยนระดับมือ">
+                        {RANKS.map(r => <option key={r} value={r}>{r} ({RANK_LEVEL_LABELS[r]})</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={cn('font-headline font-black text-base truncate', settled && 'text-green-700')}>{m.name}</p>
+                    {m.paidByName && <p className="text-xs font-semibold text-green-600 flex items-center gap-1"><Check size={10} /> จ่ายโดย {m.paidByName}</p>}
+                    <span className={cn('inline-block mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full',
+                      settled ? 'bg-green-500 text-white' :
+                        m.status === 'playing' ? 'bg-green-100 text-green-700' :
+                          m.status === 'waiting' ? 'bg-secondary/10 text-secondary' : 'bg-on-surface/5 text-on-surface/40')}>
+                      {settled ? '✓ จ่ายแล้ว' : m.status === 'playing' ? '🏸 กำลังเล่น' : m.status === 'waiting' ? '⌛ รอคิว' : '😴 พัก'}
+                    </span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={cn('font-headline font-black text-2xl leading-none', settled ? 'text-green-600' : m.balance > 0 ? 'text-error' : 'text-on-surface/25')}>฿{total.toFixed(0)}</p>
+                    <p className={cn('text-[11px] font-bold mt-1', settled ? 'text-green-600' : m.balance > 0 ? 'text-error' : 'text-on-surface/30')}>
+                      {settled ? 'ชำระแล้ว' : m.balance > 0 ? 'ค้างชำระ' : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  {cells.map(([label, val, on]) => (
+                    <div key={label} className="rounded-xl bg-background py-2">
+                      <p className="text-[10px] font-bold text-on-surface/45">{label}</p>
+                      <p className={cn('font-black text-sm', on ? 'text-on-surface' : 'text-on-surface/30')}>{val}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {!isReadOnly && (
+                  <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                    {(m.status === 'resting' || settled) && (
+                      <button onClick={() => onCheckIn(m.id)}
+                        className="flex-1 py-2.5 rounded-xl bg-primary text-white font-black text-xs flex items-center justify-center gap-1.5">
+                        <UserPlus size={14} /> {settled ? 'กลับมาตีใหม่' : 'เช็คอิน'}
+                      </button>
+                    )}
+                    {!settled && (
+                      <button onClick={() => setPosTarget(m)}
+                        className="flex-1 py-2.5 rounded-xl bg-tertiary/10 text-tertiary font-black text-xs flex items-center justify-center gap-1.5">
+                        <ShoppingCart size={14} /> ซื้อสินค้า
+                      </button>
+                    )}
+                    <button onClick={() => onRemove(m.id)} title="ลบออกจากเซสชัน"
+                      className="px-3.5 rounded-xl bg-error/10 text-error flex items-center justify-center"><Trash2 size={15} /></button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div className="flex items-center justify-between rounded-2xl bg-background px-4 py-3">
+            <span className="text-xs font-black text-on-surface/50">สรุปยอดรวมวันนี้</span>
+            <span className="font-headline font-black text-xl text-error">฿{filteredMembers.reduce((a, m) => a + ((m.totalCourt || m.courtBalance) + (m.totalShuttle || m.shuttleBalance) + (m.totalSnack || m.snackBalance)), 0).toFixed(0)}</span>
+          </div>
+        </div>
+
+        {/* ── md ขึ้นไป: ตาราง ── */}
+        <div className="hidden md:block overflow-x-auto custom-scrollbar">
         <div className="min-w-[760px]">
         {/* Table header */}
         <div className="grid grid-cols-12 gap-2 px-6 py-3 bg-background text-xs font-bold uppercase tracking-wider text-on-surface/45 border-b border-on-surface/5">

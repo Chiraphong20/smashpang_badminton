@@ -650,6 +650,40 @@ export function CourtsTab({
   const teamA = selected ? [0, 1].map(i => members.find(m => m.id === selected.players[i]) ?? null) : [];
   const teamB = selected ? [2, 3].map(i => members.find(m => m.id === selected.players[i]) ?? null) : [];
 
+  // ป็อปอัพ "เริ่มเกมเลยไหม?" — ขึ้นเมื่อเติมคนสุดท้ายจนคอร์ทครบ 4 คน (หรือกดจัดอัตโนมัติจนครบ)
+  // ไม่ขึ้นตอนโหลดข้อมูลเข้ามาทีเดียวครบ 4 คน (เช็กว่าก่อนหน้านี้เหลือ 3 หรือกดจัดอัตโนมัติ)
+  const [startPromptId, setStartPromptId] = useState<string | null>(null);
+  const prevFilledRef = useRef<Record<string, number> | null>(null);
+  const expectPromptRef = useRef(false);
+  useEffect(() => {
+    const counts: Record<string, number> = {};
+    courts.forEach(c => { counts[c.id] = c.players.filter(Boolean).length; });
+    const prev = prevFilledRef.current;
+    if (prev) {
+      const justFull = courts.find(c => c.status !== 'active' && counts[c.id] === 4 && (prev[c.id] ?? 0) < 4
+        && ((prev[c.id] ?? 0) === 3 || expectPromptRef.current));
+      if (justFull) { setStartPromptId(justFull.id); expectPromptRef.current = false; }
+    }
+    prevFilledRef.current = counts;
+  }, [courts]);
+  const promptCourt = courts.find(c => c.id === startPromptId && c.status !== 'active' && c.players.filter(Boolean).length === 4) ?? null;
+  const startFromPrompt = () => {
+    if (!promptCourt) return;
+    const id = promptCourt.id;
+    setStartPromptId(null);
+    onStartGame(id);
+  };
+  useEffect(() => {
+    if (!promptCourt) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); setStartPromptId(null); }
+      else if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); e.stopPropagation(); startFromPrompt(); }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptCourt?.id]);
+
   // Keyboard shortcuts: ←/→ switch court tabs, 1-4 open that slot's player picker, Enter starts
   // the game once 4/4 are filled, and (while a game is active) pressing Enter twice quickly ends it.
   const [openSlotRequest, setOpenSlotRequest] = useState<{ slot: number; nonce: number } | null>(null);
@@ -658,7 +692,7 @@ export function CourtsTab({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!selected || posTarget || editingSlot || scoringCourtId) return;
+      if (!selected || posTarget || editingSlot || scoringCourtId || startPromptId) return;
       const active = document.activeElement as HTMLElement | null;
       const isTyping = !!active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
       if (isTyping) return;
@@ -701,7 +735,7 @@ export function CourtsTab({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selected, isActive, filledCount, posTarget, editingSlot, scoringCourtId, askScore, onResetCourt, onStartGame, courts]);
+  }, [selected, isActive, filledCount, posTarget, editingSlot, scoringCourtId, startPromptId, askScore, onResetCourt, onStartGame, courts]);
 
   return (
     <div className="space-y-4 xl:space-y-0 xl:flex xl:flex-col xl:gap-4 xl:h-[calc(100vh-3rem)]">
@@ -732,6 +766,42 @@ export function CourtsTab({
               <div className="flex gap-3">
                 <button onClick={() => done()} className="flex-1 py-3 rounded-xl bg-background font-bold text-sm text-on-surface/60">ข้ามคะแนน</button>
                 <button onClick={() => done({ scoreA, scoreB })} className="flex-[2] py-3 rounded-xl bg-primary text-white font-bold text-sm">บันทึกและจบเกม</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {/* Start-game prompt */}
+      {promptCourt && (() => {
+        const nm = (i: number) => members.find(m => m.id === promptCourt.players[i])?.name ?? '—';
+        return (
+          <div className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setStartPromptId(null)}>
+            <div className="bg-white rounded-[2rem] p-6 w-full max-w-md space-y-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="text-center space-y-1">
+                <p className="text-sm font-black text-emerald-600">{promptCourt.name} · ผู้เล่นครบ 4 คนแล้ว</p>
+                <h3 className="font-headline font-black text-2xl">เริ่มเกมเลยไหม?</h3>
+              </div>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <div className="rounded-2xl bg-blue-50 border border-blue-100 p-3 text-center space-y-0.5">
+                  <p className="text-xs font-black text-blue-600">ทีม A</p>
+                  <p className="font-bold text-sm truncate">{nm(0)}</p>
+                  <p className="font-bold text-sm truncate">{nm(1)}</p>
+                </div>
+                <span className="font-headline font-black text-slate-500">VS</span>
+                <div className="rounded-2xl bg-orange-50 border border-orange-100 p-3 text-center space-y-0.5">
+                  <p className="text-xs font-black text-orange-600">ทีม B</p>
+                  <p className="font-bold text-sm truncate">{nm(2)}</p>
+                  <p className="font-bold text-sm truncate">{nm(3)}</p>
+                </div>
+              </div>
+              <p className="text-center text-sm font-semibold text-on-surface/55">
+                ลูกแบด {promptCourt.shuttlecocks} ลูก · ฿{(promptCourt.shuttlecocks * shuttleChargePerShuttle).toFixed(0)} / คน
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setStartPromptId(null)}
+                  className="flex-1 py-3.5 rounded-xl bg-background font-black text-sm text-on-surface/60 hover:bg-on-surface/10 transition">ยังก่อน <span className="text-[10px] opacity-60">(Esc)</span></button>
+                <button onClick={startFromPrompt} autoFocus
+                  className="flex-[2] py-3.5 rounded-xl bg-emerald-600 text-white font-black text-sm hover:bg-emerald-500 transition shadow-lg">▶ เริ่มเกม <span className="text-[10px] opacity-70">(Enter)</span></button>
               </div>
             </div>
           </div>
@@ -1013,7 +1083,7 @@ export function CourtsTab({
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <RefreshCw size={16} /> สลับทีม
                       </button>
-                      <button onClick={() => onAutoMatch(selected.id)}
+                      <button onClick={() => { expectPromptRef.current = true; onAutoMatch(selected.id); }}
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <Wand2 size={16} /> จัดอัตโนมัติ
                       </button>
