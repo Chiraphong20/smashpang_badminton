@@ -10,6 +10,21 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const str = (v, max) => String(v ?? '').trim().slice(0, max);
 
+// รับข้อความที่แชร์จาก Google Maps ได้หลายแบบ: ลิงก์เฉยๆ, "ชื่อสถานที่ + ลิงก์" ที่ปุ่มแชร์ของมือถือสร้างให้,
+// หรือพิกัด "13.7563, 100.5018" → คืนลิงก์ที่เปิดแผนที่ได้ ('' = ว่าง, null = อ่านไม่ออก)
+export function normalizeMapUrl(input) {
+  const text = String(input ?? '').trim();
+  if (!text) return '';
+  const url = text.match(/https?:\/\/[^\s<>"']+/i);
+  if (url) return url[0].replace(/[.,;)\]]+$/, '').slice(0, 300);
+  const c = text.match(/(-?\d{1,3}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)/);
+  if (c) {
+    const lat = Number(c[1]), lng = Number(c[2]);
+    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return `https://www.google.com/maps?q=${lat},${lng}`;
+  }
+  return null;
+}
+
 function parseJson(text, fallback) {
   // JSON.parse(null) คืน null โดยไม่ throw (ก๊วนที่ยังไม่เคยบันทึกประกาศ) — ใช้ค่า fallback แทน
   try { return JSON.parse(text) ?? fallback; } catch { return fallback; }
@@ -42,8 +57,8 @@ function sanitize(body) {
     schedule.push({ day, start: s.start, end });
   }
   const levels = (Array.isArray(b.levels) ? b.levels : []).filter(l => RANKS.includes(l));
-  const mapUrl = str(b.mapUrl, 300);
-  if (mapUrl && !/^https?:\/\//i.test(mapUrl)) return null;
+  const mapUrl = normalizeMapUrl(b.mapUrl);
+  if (mapUrl === null) return null;
   return {
     listed: b.listed ? 1 : 0,
     description: str(b.description, 500),

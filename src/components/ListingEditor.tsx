@@ -20,8 +20,19 @@ const EMPTY: Form = { listed: false, description: '', venue: '', area: '', mapUr
 
 const ERRORS: Record<string, string> = {
   listing_incomplete: 'ต้องใส่สถานที่และวันเวลาอย่างน้อย 1 รายการก่อนเปิดประกาศ',
-  invalid_listing: 'ข้อมูลไม่ถูกต้อง (ลิงก์แผนที่ต้องขึ้นต้นด้วย http:// หรือ https://)',
+  invalid_listing: 'ข้อมูลไม่ถูกต้อง (ลิงก์แผนที่ต้องเป็นลิงก์จาก Google Maps หรือพิกัด เช่น 13.7563, 100.5018)',
 };
+
+// แปลงสิ่งที่วางจาก Google Maps (ลิงก์ / ชื่อที่+ลิงก์ / พิกัด) ให้เป็นลิงก์เดียวที่เปิดแผนที่ได้ — ถ้าอ่านไม่ออกคืนค่าเดิม
+export function normalizeMapInput(text: string): string {
+  const t = text.trim();
+  if (!t) return '';
+  const url = t.match(/https?:\/\/[^\s<>"']+/i);
+  if (url) return url[0].replace(/[.,;)\]]+$/, '').slice(0, 300);
+  const c = t.match(/(-?\d{1,3}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)/);
+  if (c && Math.abs(Number(c[1])) <= 90 && Math.abs(Number(c[2])) <= 180) return `https://www.google.com/maps?q=${Number(c[1])},${Number(c[2])}`;
+  return text;
+}
 
 const input = 'w-full px-4 py-3 bg-surface-container rounded-xl font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30';
 
@@ -79,7 +90,16 @@ export function ListingEditor() {
       <div className="grid md:grid-cols-2 gap-4">
         <input className={input} placeholder="สถานที่ เช่น สนามแบด ABC *" maxLength={150} value={form.venue} onChange={e => set('venue', e.target.value)} />
         <input className={input} placeholder="พื้นที่ เช่น ลาดพร้าว กรุงเทพฯ" maxLength={80} value={form.area} onChange={e => set('area', e.target.value)} />
-        <input className={cn(input, 'md:col-span-2')} placeholder="ลิงก์แผนที่ (Google Maps) ไม่บังคับ" maxLength={300} value={form.mapUrl} onChange={e => set('mapUrl', e.target.value)} />
+        <div className="md:col-span-2 space-y-1.5">
+          <input className={input} placeholder="วางลิงก์/พิกัดที่แชร์จาก Google Maps (ไม่บังคับ)" maxLength={600} value={form.mapUrl}
+            onChange={e => set('mapUrl', e.target.value)}
+            onPaste={e => { e.preventDefault(); set('mapUrl', normalizeMapInput(e.clipboardData.getData('text'))); }}
+            onBlur={e => set('mapUrl', normalizeMapInput(e.target.value))} />
+          <p className="text-xs text-on-surface/40 font-semibold px-1">
+            เปิด Google Maps → กด "แชร์" → คัดลอกลิงก์ แล้ววางตรงนี้ (วางพิกัด เช่น 13.7563, 100.5018 ก็ได้)
+            {/^https?:\/\//i.test(form.mapUrl) && <> · <a href={form.mapUrl} target="_blank" rel="noreferrer" className="text-primary font-black hover:underline">ทดลองเปิดแผนที่ ↗</a></>}
+          </p>
+        </div>
         <input className={input} placeholder="ค่าใช้จ่าย เช่น 150 บาท/คน" maxLength={100} value={form.price} onChange={e => set('price', e.target.value)} />
         <input className={input} placeholder="ช่องทางติดต่อ เช่น LINE: smash01 / 08x-xxx-xxxx" maxLength={200} value={form.contact} onChange={e => set('contact', e.target.value)} />
         <textarea className={cn(input, 'md:col-span-2 resize-none')} rows={2} placeholder="รายละเอียดเพิ่มเติม เช่น บรรยากาศก๊วน ลูกที่ใช้" maxLength={500} value={form.description} onChange={e => set('description', e.target.value)} />
