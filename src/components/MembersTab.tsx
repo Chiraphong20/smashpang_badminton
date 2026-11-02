@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { UserPlus, Trash2, ChevronRight, FileText, X, Search, UserRound } from 'lucide-react';
+import { UserPlus, Trash2, ChevronRight, FileText, X, Search, UserRound, LayoutGrid, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Member, Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS, GameRecord, SessionRecord, PlayerProfile } from '../types';
 import { PlayerProfileModal } from './PlayerProfileModal';
-import { Avatar } from './Avatar';
+import { PlayerBadge } from './Avatar';
+import { SkillBoard } from './SkillBoard';
 
 interface Props {
   members: Member[];
+  groupName?: string;
   gameHistory?: GameRecord[];
   sessionHistory?: SessionRecord[];
   profiles?: Record<string, PlayerProfile>;
@@ -31,7 +33,7 @@ interface Props {
 type Filter = 'all' | 'waiting' | 'playing' | 'resting';
 
 export function MembersTab({ 
-  members, gameHistory = [], sessionHistory = [], profiles = {}, onSaveProfile, searchQuery, onSearch, onRemove, onAddMember, onImportLine, 
+  members, groupName = '', gameHistory = [], sessionHistory = [], profiles = {}, onSaveProfile, searchQuery, onSearch, onRemove, onAddMember, onImportLine, 
   onUpdateRank, onUpdateName, onAddCourt, onCheckIn,
   onBulkCheckIn, onBulkRemove, onBulkUpdateRank
 }: Props) {
@@ -39,6 +41,7 @@ export function MembersTab({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'board'>('list');
   const [showBulkRank, setShowBulkRank] = useState(false);
 
   const filtered = members.filter(m => {
@@ -87,6 +90,15 @@ export function MembersTab({
         </div>
       </div>
 
+      {/* มุมมอง: รายการ / ตารางระดับมือ */}
+      <div className="flex bg-white rounded-2xl p-1 shadow-sm border border-on-surface/5 w-fit">
+        <button onClick={() => setView('list')} className={cn('flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-black', view === 'list' ? 'bg-primary text-white' : 'text-on-surface/55')}><List size={15} /> รายการ</button>
+        <button onClick={() => setView('board')} className={cn('flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-black', view === 'board' ? 'bg-primary text-white' : 'text-on-surface/55')}><LayoutGrid size={15} /> ตารางระดับมือ</button>
+      </div>
+
+      {view === 'board' ? (
+        <SkillBoard members={members} profiles={profiles} groupName={groupName || 'ก๊วนของเรา'} onOpenProfile={setProfileId} />
+      ) : (<>
       {/* Filter Row */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex gap-2 flex-wrap">
@@ -137,10 +149,7 @@ export function MembersTab({
 
                 <div className="flex items-start gap-4">
                 <div className="relative group/rank cursor-pointer shrink-0">
-                  <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center font-black text-base transition-transform group-hover/rank:scale-105', RANK_COLORS[member.rank])}>
-                    {member.rank}
-                  </div>
-                  {profiles[member.id]?.avatar && <Avatar name={member.name} profile={profiles[member.id]} className="absolute -bottom-1.5 -right-1.5 w-7 h-7 ring-2 ring-white pointer-events-none" />}
+                  <PlayerBadge rank={member.rank} name={member.name} profile={profiles[member.id]} className="w-14 h-14 rounded-2xl text-base transition-transform group-hover/rank:scale-105" />
                   <select
                     value={member.rank}
                     onChange={(e) => onUpdateRank(member.id, e.target.value as Rank)}
@@ -299,6 +308,7 @@ export function MembersTab({
           <p className="font-bold">ไม่พบผู้เล่น</p>
         </div>
       )}
+      </>)}
       {profileId && (
         <PlayerProfileModal playerId={profileId} members={members} gameHistory={gameHistory} sessionHistory={sessionHistory}
           profile={profiles[profileId]} onSaveProfile={onSaveProfile} onClose={() => setProfileId(null)} />

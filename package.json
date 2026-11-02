@@ -23,6 +23,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.1",
     "express": "^4.22.1",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "mysql2": "^3.20.0",

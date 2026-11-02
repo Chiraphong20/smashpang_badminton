@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bolt, X, Plus, Trash2, ShoppingCart, Search, Check, RotateCcw, Lock, ChevronDown, ChevronRight, RefreshCw, Wand2, ArrowDownWideNarrow, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { Member, Court, Snack, GameRecord, Rank, RANKS, RANK_WEIGHTS, RANK_COLORS, RANK_LEVEL_LABELS, CourtQueueSlot, QueuePlayer, SessionMode } from '../types';
+import { Member, Court, Snack, GameRecord, Rank, RANKS, RANK_WEIGHTS, RANK_COLORS, RANK_LEVEL_LABELS, CourtQueueSlot, QueuePlayer, SessionMode, PlayerProfile } from '../types';
 import { format } from 'date-fns';
 import { POSModal } from './POSModal';
+import { PlayerBadge } from './Avatar';
 import { useModalHotkeys } from '../hooks/useModalHotkeys';
 
 let draggingPlayerId: string | null = null;
@@ -42,6 +43,7 @@ function CourtIcon({ tone }: { tone: 'green' | 'orange' | 'gray' }) {
 }
 
 interface Props {
+  profiles?: Record<string, PlayerProfile>;
   /** เปิดหน้านี้พร้อมเลือกคอร์ทนี้ (เช่นกดมาจากการ์ดในหน้าหลัก) */
   focusCourtId?: string | null;
   members: Member[];
@@ -75,7 +77,8 @@ interface Props {
 }
 
 // ── Player Picker ─────────────────────────────────────────────────────────────
-function PlayerPicker({ members, currentPlayerId, onSelect, onClose, position }: {
+function PlayerPicker({ members, currentPlayerId, onSelect, onClose, position, profiles = {} }: {
+  profiles?: Record<string, PlayerProfile>;
   members: Member[];
   currentPlayerId: string | null;
   onSelect: (id: string | null) => void;
@@ -151,7 +154,7 @@ function PlayerPicker({ members, currentPlayerId, onSelect, onClose, position }:
             className={cn('w-full flex items-center gap-3 px-4 py-3 hover:bg-primary/5 transition-colors',
               m.id === currentPlayerId ? 'bg-primary/5' : '',
               navIndex === highlightedIndex && 'bg-primary/5 ring-2 ring-inset ring-primary/20')}>
-            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0', RANK_COLORS[m.rank])}>{m.rank}</div>
+            <PlayerBadge rank={m.rank} name={m.name} profile={profiles[m.id]} className="w-10 h-10 rounded-xl text-sm" />
             <div className="flex-1 text-left min-w-0">
               <p className="font-bold truncate">{m.name}</p>
               <p className="text-xs text-on-surface/40">
@@ -168,8 +171,9 @@ function PlayerPicker({ members, currentPlayerId, onSelect, onClose, position }:
 }
 
 // ── Slot Card ────────────────────────────────────────────────────────────────
-function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locked, openRequest }: {
+function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locked, openRequest, profiles = {} }: {
   key?: number;
+  profiles?: Record<string, PlayerProfile>;
   slotIndex: number;
   courtId: string;
   playerId: string | null;
@@ -248,9 +252,11 @@ function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locke
         )}
         {player ? (
           <div className="w-full p-2.5 sm:p-3 flex items-center gap-2.5 sm:gap-3">
-            <div className={cn('w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-black text-sm sm:text-base text-white shrink-0', isA ? 'bg-blue-500' : 'bg-orange-500')}>
-              {initials(player.name)}
-            </div>
+            {profiles[player.id]?.avatar
+              ? <img src={profiles[player.id].avatar} alt={player.name} draggable={false} className={cn('w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover shrink-0 ring-[3px]', isA ? 'ring-blue-500' : 'ring-orange-500')} />
+              : <div className={cn('w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-black text-sm sm:text-base text-white shrink-0', isA ? 'bg-blue-500' : 'bg-orange-500')}>
+                {initials(player.name)}
+              </div>}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <p className="font-headline font-black text-sm sm:text-base truncate max-w-full">{player.name}</p>
@@ -279,6 +285,7 @@ function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locke
       <AnimatePresence>
         {open && !locked && (
           <PlayerPicker
+            profiles={profiles}
             members={members}
             currentPlayerId={playerId}
             onSelect={onSelect}
@@ -568,7 +575,7 @@ export function CourtsTab({
   minRankFilter, setMinRankFilter, maxRankFilter, setMaxRankFilter,
   onAddCourt,
   courtQueues, onAddCourtQueue, onRemoveCourtQueue, onUpdateCourtQueue, onMoveCourtQueue,
-  sessionMode, askScore, shuttleChargePerShuttle, focusCourtId,
+  sessionMode, askScore, shuttleChargePerShuttle, focusCourtId, profiles = {},
 }: Props) {
   const [scoringCourtId, setScoringCourtId] = useState<string | null>(null);
   const finishCourt = (courtId: string) => {
@@ -1022,7 +1029,9 @@ export function CourtsTab({
                     isActive ? 'opacity-60 cursor-default' : 'cursor-grab active:cursor-grabbing hover:border-primary/30 hover:shadow-md'
                   )}
                 >
-                  <div className="w-11 h-11 rounded-full bg-slate-500 text-white flex items-center justify-center font-black shrink-0">{initials(m.name)}</div>
+                  {profiles[m.id]?.avatar
+                    ? <img src={profiles[m.id].avatar} alt={m.name} draggable={false} className="w-11 h-11 rounded-full object-cover shrink-0" />
+                    : <div className="w-11 h-11 rounded-full bg-slate-500 text-white flex items-center justify-center font-black shrink-0">{initials(m.name)}</div>}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-headline font-black text-base truncate max-w-full">{m.name}</p>
@@ -1110,7 +1119,7 @@ export function CourtsTab({
                   <div className="grid grid-cols-2 xl:grid-cols-1 gap-2.5">
                     {[0, 1].map(i => (
                       <SlotCard key={i} slotIndex={i} courtId={selected.id} playerId={selected.players[i]} team="A"
-                        members={members} onSelect={id => handleSelect(i, id)} locked={false}
+                        members={members} profiles={profiles} onSelect={id => handleSelect(i, id)} locked={false}
                         openRequest={openSlotRequest?.slot === i ? openSlotRequest.nonce : null} />
                     ))}
                   </div>
@@ -1132,7 +1141,7 @@ export function CourtsTab({
                   <div className="grid grid-cols-2 xl:grid-cols-1 gap-2.5">
                     {[2, 3].map(i => (
                       <SlotCard key={i} slotIndex={i} courtId={selected.id} playerId={selected.players[i]} team="B"
-                        members={members} onSelect={id => handleSelect(i, id)} locked={false}
+                        members={members} profiles={profiles} onSelect={id => handleSelect(i, id)} locked={false}
                         openRequest={openSlotRequest?.slot === i ? openSlotRequest.nonce : null} />
                     ))}
                   </div>

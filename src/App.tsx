@@ -678,6 +678,14 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
   };
 
   // ออกจากระบบทั้งบัญชี: ล้างทั้งโทเคนก๊วนและโทเคนเจ้าของก๊วน แล้วกลับหน้าแรก
+  // เปลี่ยนโหมดก๊วนกลางวัน (จากแบนเนอร์หน้าหลัก) — เตือนก่อนถ้ามีการคิดเงินไปแล้ว เพราะระบบไม่คำนวณย้อนหลัง
+  const switchMode = (m: SessionMode) => {
+    if (m === activeMode) return;
+    const charged = gameHistory.length > 0 || members.some(x => x.balance > 0 || x.paidCourtFee);
+    if (charged && !confirm(`เปลี่ยนเป็นโหมด "${MODE_LABELS[m]}" ใช่ไหม?\n\nวันนี้คิดเงินไปแล้วบางส่วน ยอดเดิมจะไม่ถูกคำนวณใหม่ มีผลกับเกมที่จบหลังจากนี้เท่านั้น`)) return;
+    setSessionMode(m);
+  };
+
   const logout = () => {
     if (!confirm('ออกจากระบบใช่ไหม?')) return;
     clearToken();
@@ -1611,6 +1619,9 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                     mode={activeMode} modeConfig={modeConfig} courtFeePerPerson={courtFeePerPerson} shuttlePrice={shuttlePrice}
                     onChangeConfig={patch => setModeConfig(prev => ({ ...prev, ...patch }))} onApplySplit={applySplit}
                     onOpenCourt={(id) => { setFocusCourtId(id); setActiveTab('courts'); }}
+                    allowedModes={plan?.plan.modes}
+                    onSwitchMode={switchMode}
+                    profiles={playerProfiles}
                     members={members} courts={courts} snacks={snacks} 
                     paymentHistory={paymentHistory} gameHistory={gameHistory}
                     onUpdateRank={updateMemberRank}
@@ -1666,6 +1677,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                 {activeTab === 'members' && (
                   <MembersTab
                     members={members}
+                    groupName={groupName}
                     gameHistory={gameHistory}
                     sessionHistory={sessionHistory}
                     profiles={playerProfiles}
@@ -1687,6 +1699,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                 {activeTab === 'courts' && (
                   <CourtsTab
                     focusCourtId={focusCourtId}
+                    profiles={playerProfiles}
                     members={members} courts={courts} snacks={snacks}
                     searchQuery={searchQuery} gameHistory={gameHistory}
                     onAutoMatch={autoMatch} onStartGame={startGame} onResetCourt={resetCourt}
