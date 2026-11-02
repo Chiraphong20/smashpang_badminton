@@ -62,6 +62,8 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
 
   // ชื่อที่ผู้จัดตอบว่า "ไม่ใช่คนเดียวกัน" แล้ว จะไม่ถามซ้ำ
   const [notSame, setNotSame] = useState<Set<string>>(new Set());
+  // ชื่อที่ซ้ำกับสมาชิกเดิมเป๊ะๆ และผู้จัดยืนยันแล้วว่า "คนเดียวกัน"
+  const [sameOk, setSameOk] = useState<Set<string>>(new Set());
 
   const handleParse = (override?: string) => {
     if (mode === 'line') {
@@ -89,7 +91,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
 
   // เปิดพร้อมข้อความที่เตรียมไว้ → วิเคราะห์ทันที
   useEffect(() => {
-    if (open && initialText) { setText(initialText); setNotSame(new Set()); handleParse(initialText); }
+    if (open && initialText) { setText(initialText); setNotSame(new Set()); setSameOk(new Set()); handleParse(initialText); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialText]);
 
@@ -103,7 +105,10 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
   };
   const updateName = (id: string, name: string) => {
     setParsed(prev => prev.map(p => p.id === id ? { ...p, name } : p));
+    setSameOk(prev => { if (!prev.has(id)) return prev; const n = new Set(prev); n.delete(id); return n; }); // แก้ชื่อแล้ว ให้ตรวจใหม่
   };
+  const isDupOf = (name: string) => existingNames.some(n => n.trim().toLowerCase() === name.trim().toLowerCase());
+  const unresolvedDups = mode === 'line' ? parsed.filter(p => isDupOf(p.name) && !sameOk.has(p.id)) : [];
   const removeParsed = (id: string) => {
     setParsed(prev => prev.filter(p => p.id !== id));
   };
@@ -141,7 +146,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
   };
 
   const handleClose = () => {
-    setText(''); setParsed([]); setStep('paste'); setNotSame(new Set());
+    setText(''); setParsed([]); setStep('paste'); setNotSame(new Set()); setSameOk(new Set());
     onClose();
   };
 
@@ -247,20 +252,43 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
             </>
           ) : (
             <div className="space-y-2">
+              {unresolvedDups.length >= 2 && (
+                <button onClick={() => setSameOk(prev => { const n = new Set(prev); unresolvedDups.forEach(p => n.add(p.id)); return n; })}
+                  className="w-full px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm font-black hover:bg-amber-100">
+                  ✓ ยืนยันว่าเป็นคนเดียวกันทั้งหมด ({unresolvedDups.length} ชื่อที่ซ้ำสมาชิกเดิม)
+                </button>
+              )}
               {parsed.map((p, idx) => {
                 const isExisting = existingNames.some(n => n.trim().toLowerCase() === p.name.trim().toLowerCase());
+                const dupAsk = isExisting && mode === 'line' && !sameOk.has(p.id);
                 const similar = !isExisting && mode === 'line' && !notSame.has(p.id) ? similarNames(p.name, existingNames) : [];
                 return (
                   <div key={p.id} className={cn("flex items-center gap-3 rounded-2xl px-4 py-3 transition-colors", isExisting ? "bg-primary/5" : "bg-background")}>
                     <span className="text-xs font-black text-on-surface/30 w-6 text-center shrink-0">{idx + 1}</span>
                     <div className="flex-1 min-w-0">
                       <input
+                        id={`imp-name-${p.id}`}
                         value={p.name}
                         onChange={e => updateName(p.id, e.target.value)}
                         className={cn("w-full bg-transparent font-bold text-sm focus:outline-none truncate", isExisting ? "text-primary" : "text-on-surface")}
                       />
-                      {isExisting && (
+                      {isExisting && !dupAsk && (
                         <p className="text-xs font-semibold text-primary/60 leading-none">สมาชิกเดิมในระบบ ✓</p>
+                      )}
+                      {dupAsk && (
+                        <div className="mt-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 space-y-1.5">
+                          <p className="text-xs font-black text-amber-700">มีชื่อ “{p.name.trim()}” ในระบบแล้ว — ใช่คนเดียวกันไหม?</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            <button onClick={() => setSameOk(prev => new Set(prev).add(p.id))}
+                              className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-black hover:bg-amber-600 active:scale-95 transition-all">
+                              ✓ คนเดียวกัน
+                            </button>
+                            <button onClick={() => { const el = document.getElementById(`imp-name-${p.id}`) as HTMLInputElement | null; el?.focus(); el?.select(); }}
+                              className="px-3 py-1.5 rounded-lg bg-white text-on-surface/70 text-xs font-black border border-on-surface/10 hover:bg-background">
+                              คนละคน — เปลี่ยนชื่อ
+                            </button>
+                          </div>
+                        </div>
                       )}
                       {!isExisting && mode === 'line' && similar.length === 0 && (
                         <p className="text-xs font-semibold text-secondary leading-none">สมาชิกใหม่ (เกสต์) 👤</p>
