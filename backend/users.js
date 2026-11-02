@@ -3,6 +3,7 @@ import express from 'express';
 import { pool } from './db.js';
 import { hashPin, verifyPin, issueToken, issueUserToken, hashSecret, userIdFromRequest } from './auth.js';
 import { effectivePlan, usageFor, mountAdminPlans, monthStartMs } from './plans.js';
+import { emailEnabled, sendMail } from './mailer.js';
 
 // ───────────────────────── ตั้งค่า (.env) ─────────────────────────
 // ADMIN_EMAIL : อีเมลที่สมัครแล้วจะได้เป็นแอดมินระบบ — ไม่มีการยืนยันอีเมลแล้ว จึงควรสมัครบัญชีนี้เป็นคนแรกทันทีหลังติดตั้ง
@@ -18,7 +19,7 @@ const PIN_RE = /^\d{4,8}$/;
 
 const newId = () => crypto.randomBytes(10).toString('hex');
 
-export const publicConfig = () => ({ emailEnabled: false });
+export const publicConfig = () => ({ emailEnabled: emailEnabled() });
 
 const userDto = (u) => ({ id: u.id, email: u.email, username: u.username, displayName: u.display_name, role: u.role, status: u.status });
 
@@ -26,6 +27,30 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
   console.error(err);
   res.status(500).json({ error: 'server_error' });
 });
+
+// ───────────────────────── OTP ยืนยันอีเมล ─────────────────────────
+const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_COOLDOWN_MS = 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
+const otpHash = (userId, code) => hashSecret(`${userId}:${code}`);
+
+// สร้างรหัส 6 หลักแล้วส่งอีเมล — คืน 'cooldown' ถ้าเพิ่งส่งไปไม่ถึง 60 วินาที, โยน error ถ้าส่งไม่สำเร็จ
+async function sendOtp(user) {
+  const [rows] = await pool.query('SELECT sent_at FROM email_otp WHERE user_id = ?', [user.id]);
+  if (rows[0] && Date.now() - Number(rows[0].sent_at) < OTP_COOLDOWN_MS) return 'cooldown';
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  const now = Date.now();
+  await pool.query(
+    'INSERT INTO email_otp (user_id, otp_hash, attempts, expires_at, sent_at) VALUES (?, ?, 0, ?, ?) ON DUPLICATE KEY UPDATE otp_hash = VALUES(otp_hash), attempts = 0, expires_at = VALUES(expires_at), sent_at = VALUES(sent_at)',
+    [user.id, otpHash(user.id, code), now + OTP_TTL_MS, now]
+  );
+  await sendMail({
+    to: user.email,
+    subject: `รหัสยืนยัน SmashPang: ${code}`,
+    html: `<p>สวัสดี ${user.display_name}</p><p>รหัสยืนยันอีเมลของคุณคือ</p><p style="font-size:30px;font-weight:bold;letter-spacing:6px">${code}</p><p>รหัสนี้หมดอายุใน 10 นาที หากคุณไม่ได้สมัคร SmashPang กรุณาเพิกเฉยต่ออีเมลนี้</p>`,
+  });
+  return 'sent';
+}
 
 // ───────────────────────── middleware ─────────────────────────
 async function loadUser(req, res, next) {
@@ -56,7 +81,7 @@ const throttle = (max, windowMs) => (req, res, next) => {
 // ───────────────────────── /api/auth ─────────────────────────
 export const auth = express.Router();
 
-// สมัครแล้วใช้งานได้ทันที (ไม่ต้องยืนยันอีเมล) — คืน token ให้ล็อกอินต่อเลย
+// สมัคร: ถ้าตั้ง RESEND_API_KEY → บัญชีรอยืนยัน + ส่ง OTP ทางอีเมล · ไม่ตั้ง = ใช้งานได้ทันทีและล็อกอินให้เลย
 auth.post('/register', throttle(10, 60 * 60 * 1000), wrap(async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
@@ -65,26 +90,64 @@ auth.post('/register', throttle(10, 60 * 60 * 1000), wrap(async (req, res) => {
   if (password.length < 6 || password.length > 100) return res.status(400).json({ error: 'weak_password' });
   if (!USERNAME_RE.test(username)) return res.status(400).json({ error: 'invalid_username' });
 
+  const needOtp = emailEnabled();
   const [nameTaken] = await pool.query('SELECT id FROM users WHERE username = ? AND email <> ?', [username, email]);
   if (nameTaken.length > 0) return res.status(409).json({ error: 'username_taken' });
   const [exist] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+  let user;
   if (exist.length > 0) {
-    // บัญชีเก่าที่สมัครค้างไว้ตอนยังมีขั้นตอนยืนยันอีเมล → ให้สมัครทับและเปิดใช้งานเลย
     if (exist[0].status !== 'pending') return res.status(409).json({ error: 'email_taken' });
-    await pool.query("UPDATE users SET username = ?, display_name = ?, password_hash = ?, status = 'active' WHERE id = ?",
-      [username, username, hashPin(password), exist[0].id]);
-    return res.json({ ok: true, token: issueUserToken(exist[0].id) });
+    // ยังไม่ยืนยัน: ให้สมัครทับได้ (เฉพาะเจ้าของอีเมลที่กรอก OTP ได้เท่านั้นที่เปิดใช้บัญชีได้)
+    await pool.query("UPDATE users SET username = ?, display_name = ?, password_hash = ?, status = ? WHERE id = ?",
+      [username, username, hashPin(password), needOtp ? 'pending' : 'active', exist[0].id]);
+    user = { ...exist[0], display_name: username };
+  } else {
+    const id = newId();
+    const role = email === ADMIN_EMAIL ? 'admin' : 'owner';
+    await pool.query(
+      "INSERT INTO users (id, email, username, password_hash, display_name, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [id, email, username, hashPin(password), username, role, needOtp ? 'pending' : 'active', Date.now()]
+    );
+    user = { id, email, display_name: username };
   }
-  const id = newId();
-  const role = email === ADMIN_EMAIL ? 'admin' : 'owner';
-  await pool.query(
-    "INSERT INTO users (id, email, username, password_hash, display_name, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?)",
-    [id, email, username, hashPin(password), username, role, Date.now()]
-  );
-  res.json({ ok: true, token: issueUserToken(id) });
+  if (!needOtp) return res.json({ ok: true, token: issueUserToken(user.id) });
+  try { await sendOtp(user); } catch (e) { console.error('OTP email failed:', e.message); return res.status(502).json({ error: 'email_failed', needsOtp: true, email }); }
+  res.json({ ok: true, needsOtp: true, email });
 }));
 
-// ยืนยันอีเมลจากลิงก์ → เปิดใช้งานบัญชี + ล็อกอินให้เลย
+// ส่งรหัส OTP ใหม่ (รอ 60 วินาทีระหว่างครั้ง) — ตอบเหมือนกันเสมอ ไม่บอกว่าอีเมลนี้มีในระบบหรือไม่
+auth.post('/resend', throttle(10, 60 * 60 * 1000), wrap(async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!emailEnabled()) return res.json({ ok: true });
+  const [rows] = await pool.query("SELECT * FROM users WHERE email = ? AND status = 'pending'", [email]);
+  if (rows[0]) {
+    try { if ((await sendOtp(rows[0])) === 'cooldown') return res.status(429).json({ error: 'cooldown' }); }
+    catch (e) { console.error('OTP email failed:', e.message); return res.status(502).json({ error: 'email_failed' }); }
+  }
+  res.json({ ok: true });
+}));
+
+// ตรวจรหัส OTP → เปิดใช้งานบัญชี + ล็อกอินให้เลย
+auth.post('/verify-otp', throttle(30, 60 * 60 * 1000), wrap(async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const code = String(req.body?.code || '').trim();
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'invalid_code' });
+  const [users] = await pool.query("SELECT id FROM users WHERE email = ? AND status = 'pending'", [email]);
+  if (users.length === 0) return res.status(400).json({ error: 'invalid_code' });
+  const uid = users[0].id;
+  const [rows] = await pool.query('SELECT otp_hash, attempts, expires_at FROM email_otp WHERE user_id = ?', [uid]);
+  const row = rows[0];
+  if (!row || Number(row.expires_at) < Date.now()) return res.status(400).json({ error: 'code_expired' });
+  if (row.attempts >= OTP_MAX_ATTEMPTS) return res.status(429).json({ error: 'too_many_codes' });
+  if (row.otp_hash !== otpHash(uid, code)) {
+    await pool.query('UPDATE email_otp SET attempts = attempts + 1 WHERE user_id = ?', [uid]);
+    return res.status(400).json({ error: 'invalid_code', left: Math.max(0, OTP_MAX_ATTEMPTS - row.attempts - 1) });
+  }
+  await pool.query("UPDATE users SET status = 'active' WHERE id = ?", [uid]);
+  await pool.query('DELETE FROM email_otp WHERE user_id = ?', [uid]);
+  res.json({ ok: true, token: issueUserToken(uid) });
+}));
+
 auth.post('/verify', throttle(30, 60 * 60 * 1000), wrap(async (req, res) => {
   const hash = hashSecret(String(req.body?.token || ''));
   const [rows] = await pool.query('SELECT user_id, expires_at FROM verifications WHERE token_hash = ?', [hash]);
@@ -102,7 +165,8 @@ auth.post('/login', throttle(15, 10 * 60 * 1000), wrap(async (req, res) => {
     return res.status(401).json({ error: 'wrong_credentials' });
   }
   if (user.status === 'pending') {
-    // บัญชีเก่าที่ค้างรอยืนยันอีเมล — ไม่มีขั้นตอนยืนยันแล้ว เปิดใช้งานให้เลย
+    if (emailEnabled()) return res.status(403).json({ error: 'not_verified', email: user.email });
+    // ปิดการยืนยันอีเมลอยู่ — บัญชีที่ค้างรอยืนยันเปิดใช้งานให้เลย
     await pool.query("UPDATE users SET status = 'active' WHERE id = ?", [user.id]);
     user.status = 'active';
   }

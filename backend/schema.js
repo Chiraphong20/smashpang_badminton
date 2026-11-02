@@ -137,6 +137,18 @@ export async function ensureSchema() {
     )
   `);
 
+  // รหัส OTP ยืนยันอีเมลตอนสมัคร (เก็บเฉพาะแฮช) — 1 แถวต่อผู้ใช้ ขอใหม่แล้วทับของเดิม
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS email_otp (
+      user_id VARCHAR(40) PRIMARY KEY,
+      otp_hash VARCHAR(64) NOT NULL,
+      attempts INT NOT NULL DEFAULT 0,
+      expires_at BIGINT NOT NULL,
+      sent_at BIGINT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   // ประกาศหาสมาชิก (หน้า "หาก๊วน")
   await pool.query(`
     CREATE TABLE IF NOT EXISTS group_listings (
