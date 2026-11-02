@@ -13,6 +13,8 @@ import {
   LogOut,
 } from 'lucide-react';
 import { ListingEditor } from './ListingEditor';
+import { PromptPayQR } from './PromptPayQR';
+import { parsePromptPayId } from '../lib/promptpay';
 import type { PlanInfo } from '../lib/api';
 import { Rank, SessionMode, ModeConfig, MODE_LABELS, MODE_THEME } from '../types';
 
@@ -35,6 +37,8 @@ interface Props {
   onLogout: () => void;
   onSwitchGroup: () => void;
   plan?: PlanInfo | null;
+  promptPay?: { id: string; name: string };
+  onChangePromptPay?: (v: { id: string; name: string }) => void;
   queueUrl: string;
   sessionMode: SessionMode;
   setSessionMode: (m: SessionMode) => void;
@@ -46,7 +50,7 @@ export function SettingsTab({
   courtFeePerPerson, setCourtFeePerPerson,
   shuttlePrice, setShuttlePrice,
   onSeedMockHistory, onResetDay, onFactoryReset,
-  rankMemory, onLogout, onSwitchGroup, plan, queueUrl,
+  rankMemory, onLogout, onSwitchGroup, plan, promptPay, onChangePromptPay, queueUrl,
   sessionMode, setSessionMode, modeConfig, setModeConfig
 }: Props) {
   const [copied, setCopied] = useState(false);
@@ -121,6 +125,37 @@ export function SettingsTab({
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {onChangePromptPay && (
+        <section className="bg-white rounded-[2rem] p-4 sm:p-6 shadow-sm border border-on-surface/5 space-y-4">
+          <div>
+            <h3 className="font-headline font-black text-lg flex items-center gap-2">📱 พร้อมเพย์รับเงิน</h3>
+            <p className="text-xs font-semibold text-on-surface/50">ตั้งครั้งเดียว แล้วหน้าเก็บเงินจะแสดง QR ที่ล็อกยอดให้ลูกค้าสแกนจ่ายได้เลย (QR สร้างในเครื่อง ไม่ส่งเลขของคุณให้บริการภายนอก)</p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-3">
+            <label className="space-y-1">
+              <span className="text-xs font-bold text-on-surface/50">เบอร์มือถือ / เลขบัตรประชาชน / เลขผู้เสียภาษี</span>
+              <input value={promptPay?.id || ''} inputMode="numeric" maxLength={20} placeholder="เช่น 081-234-5678"
+                onChange={e => onChangePromptPay({ id: e.target.value.replace(/[^\d-]/g, ''), name: promptPay?.name || '' })}
+                className="w-full px-4 py-3 bg-background rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-primary/25" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-bold text-on-surface/50">ชื่อบัญชีที่แสดงใต้ QR (ไม่บังคับ)</span>
+              <input value={promptPay?.name || ''} maxLength={40} placeholder="เช่น ก๊วนแบดวันอังคาร"
+                onChange={e => onChangePromptPay({ id: promptPay?.id || '', name: e.target.value })}
+                className="w-full px-4 py-3 bg-background rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-primary/25" />
+            </label>
+          </div>
+          {promptPay?.id && !parsePromptPayId(promptPay.id) && <p className="text-xs font-bold text-red-500">เลขไม่ถูกต้อง — ใช้เบอร์มือถือ 10 หลัก (ขึ้นต้น 06/08/09) หรือเลข 13 หลัก</p>}
+          {promptPay?.id && parsePromptPayId(promptPay.id) && (
+            <div className="flex flex-wrap items-center gap-4">
+              <PromptPayQR id={promptPay.id} name={promptPay.name} size={150} />
+              <p className="text-xs font-semibold text-on-surface/50 max-w-xs">ตัวอย่าง QR (ยังไม่ล็อกยอด) · ลองสแกนด้วยแอปธนาคารเพื่อตรวจว่าชื่อบัญชีตรงกับของคุณ · ตอนเก็บเงินจะล็อกยอดต่อคนให้อัตโนมัติ</p>
+            </div>
+          )}
+          {promptPay?.id && <button onClick={() => onChangePromptPay({ id: '', name: '' })} className="text-xs font-bold text-on-surface/40 hover:text-red-500">ล้างข้อมูลพร้อมเพย์</button>}
         </section>
       )}
 

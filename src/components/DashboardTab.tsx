@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { POSModal } from './POSModal';
 import { PlayerBadge } from './Avatar';
+import { PromptPayQR } from './PromptPayQR';
 import { useModalHotkeys } from '../hooks/useModalHotkeys';
 
 interface Props {
@@ -53,12 +54,14 @@ interface Props {
   allowedModes?: SessionMode[];
   /** โปรไฟล์ผู้เล่น — มีรูปแล้วแสดงรูปแทนกล่องระดับมือ */
   profiles?: Record<string, PlayerProfile>;
+  promptPay?: { id: string; name: string };
 }
 
 
 
 // Modal showing a player's checkout details (snacks, games, and payment)
-function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [], initialOthers = [], onUpdateRank, onRemoveSnack, onUpdateSnackPrice, onPay, onReOpen, isReadOnly, onClose }: {
+function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [], initialOthers = [], onUpdateRank, onRemoveSnack, onUpdateSnackPrice, onPay, onReOpen, isReadOnly, onClose, promptPay }: {
+  promptPay?: { id: string; name: string };
   member: Member;
   gameHistory: GameRecord[];
   otherMembers: Member[];
@@ -81,6 +84,7 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
   const [manualAmount, setManualAmount] = useState<number | null>(null);
   const displayAmount = manualAmount !== null ? manualAmount : totalBalance;
 
+  const [showQr, setShowQr] = useState(false);
   const [editingSnackIndex, setEditingSnackIndex] = useState<number | null>(null);
   const [tempPrice, setTempPrice] = useState<string>('');
 
@@ -335,6 +339,21 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
             )}
           </div>
 
+          {/* QR พร้อมเพย์พร้อมยอด — ให้ลูกค้าสแกนจ่าย */}
+          {!isReadOnly && member.status !== 'paid' && displayAmount > 0 && (
+            promptPay?.id ? (
+              <div className="space-y-3">
+                <button onClick={() => setShowQr(v => !v)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-sky-50 text-[#1a4f9c] border-2 border-sky-200 font-black text-sm hover:bg-sky-100 transition-colors">
+                  📱 {showQr ? 'ซ่อน' : 'แสดง'} QR พร้อมเพย์ ฿{displayAmount.toLocaleString()}
+                </button>
+                {showQr && <div className="flex justify-center"><PromptPayQR id={promptPay.id} name={promptPay.name} amount={displayAmount} /></div>}
+              </div>
+            ) : (
+              <p className="text-xs font-semibold text-on-surface/40 text-center">อยากให้ลูกค้าสแกนจ่ายได้เลย? ตั้งเลขพร้อมเพย์ที่ ตั้งค่า → พร้อมเพย์รับเงิน แล้ว QR พร้อมยอดจะขึ้นตรงนี้</p>
+            )
+          )}
+
           {/* Warning for negative amounts */}
           {!isReadOnly && displayAmount < 0 && (
             <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3">
@@ -443,7 +462,7 @@ export function DashboardTab({
   onAddCourt, isSidebarCollapsed, onCheckIn, onRemove, onResetDay,
   onClearBoard, onUpdateGame,
   isSyncing, onImportLine,
-  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}
+  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay
 }: Props) {
   // เก็บแค่ id ไม่เก็บ snapshot ของ Member ทั้งก้อน — เดี๋ยว modal จะได้อ่านข้อมูลสดจาก currentMembers
   // เสมอ (ไม่งั้นพอลบสินค้า/แก้ไขอะไรระหว่างเปิด modal อยู่ จะไม่เห็นการเปลี่ยนแปลงจนกว่าจะปิดเปิดใหม่)
@@ -1448,6 +1467,7 @@ export function DashboardTab({
       <AnimatePresence>
         {activeCheckoutMember && (
           <CheckoutModal
+            promptPay={promptPay}
             member={activeCheckoutMember}
             initialOthers={activeCheckoutOthers}
             gameHistory={currentGames}
