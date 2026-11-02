@@ -6,6 +6,7 @@ const params = () => new URLSearchParams(window.location.search);
 // ก๊วนปัจจุบัน อ่านจาก ?g=<id> ใน URL (ว่าง = ยังไม่ได้เลือกก๊วน)
 export const getGroupId = (): string => (params().get('g') || '').trim().toLowerCase();
 export const isQueueMode = (): boolean => params().has('queue');
+export const isSignupMode = (): boolean => params().has('signup');
 
 const tokenKey = (gid: string) => `sp_token_${gid}`;
 

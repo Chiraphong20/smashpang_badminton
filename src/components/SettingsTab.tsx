@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { ListingEditor } from './ListingEditor';
 import { HelpersManager } from './HelpersManager';
+import { SignupManager } from './SignupManager';
 import { PromptPayQR } from './PromptPayQR';
 import { parsePromptPayId } from '../lib/promptpay';
 import type { PlanInfo } from '../lib/api';
@@ -40,6 +41,7 @@ interface Props {
   plan?: PlanInfo | null;
   /** ผู้ช่วย: ซ่อนส่วนที่เป็นของเจ้าของก๊วน (แพ็กเกจ พร้อมเพย์ ประกาศ ล้างข้อมูล) */
   isHelper?: boolean;
+  onImportSignups?: (names: string[]) => void;
   promptPay?: { id: string; name: string };
   onChangePromptPay?: (v: { id: string; name: string }) => void;
   queueUrl: string;
@@ -53,7 +55,7 @@ export function SettingsTab({
   courtFeePerPerson, setCourtFeePerPerson,
   shuttlePrice, setShuttlePrice,
   onSeedMockHistory, onResetDay, onFactoryReset,
-  rankMemory, onLogout, onSwitchGroup, plan, isHelper, promptPay, onChangePromptPay, queueUrl,
+  rankMemory, onLogout, onSwitchGroup, plan, isHelper, onImportSignups, promptPay, onChangePromptPay, queueUrl,
   sessionMode, setSessionMode, modeConfig, setModeConfig
 }: Props) {
   const [copied, setCopied] = useState(false);
@@ -161,6 +163,8 @@ export function SettingsTab({
           {promptPay?.id && <button onClick={() => onChangePromptPay({ id: '', name: '' })} className="text-xs font-bold text-on-surface/40 hover:text-red-500">ล้างข้อมูลพร้อมเพย์</button>}
         </section>
       )}
+
+      {onImportSignups && <SignupManager maxPlayers={plan?.plan.maxPlayers} onImport={onImportSignups} />}
 
       {!isHelper && <HelpersManager />}
 

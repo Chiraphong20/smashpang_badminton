@@ -10,7 +10,7 @@ import { GroupEntry } from './components/GroupEntry';
 import { GroupGate } from './components/GroupGate';
 import { FindGroups } from './components/FindGroups';
 import { Landing } from './components/Landing';
-import { apiFetch, apiJson, getGroupId, getToken, clearToken, clearUserToken, isQueueMode, fetchGroupInfo, rememberGroup, groupUrl, formatSlot, ListingSlot, fetchPlan, PlanInfo, getGroupRole } from './lib/api';
+import { apiFetch, apiJson, getGroupId, getToken, clearToken, clearUserToken, isQueueMode, isSignupMode, fetchGroupInfo, rememberGroup, groupUrl, formatSlot, ListingSlot, fetchPlan, PlanInfo, getGroupRole } from './lib/api';
 import { DashboardTab } from './components/DashboardTab';
 import { CourtsTab } from './components/CourtsTab';
 import { MembersTab } from './components/MembersTab';
@@ -24,6 +24,7 @@ import { ManageProductsModal } from './components/ManageProductsModal';
 import { ImportMembersModal } from './components/ImportMembersModal';
 import { LogsTab } from './components/LogsTab';
 import { QueueView } from './components/QueueView';
+import { SignupPage } from './components/SignupPage';
 import { RANK_WEIGHTS, MODE_THEME, MODE_LABELS } from './types';
 import { useModalHotkeys } from './hooks/useModalHotkeys';
 
@@ -61,7 +62,7 @@ export default function App() {
   const [authed, setAuthed] = useState(() => !!getToken(gid));
 
   useEffect(() => {
-    if (!gid || isQueueMode()) return;
+    if (!gid || isQueueMode() || isSignupMode()) return;
     fetchGroupInfo(gid).then(info => {
       if (!info) { setGroupMissing(true); return; }
       if (info.suspended) { setGroupMissing(true); return; }
@@ -76,6 +77,7 @@ export default function App() {
   if (!gid && !groupMissing && !['join', 'account', 'verify'].some(k => new URLSearchParams(window.location.search).has(k))) return <Landing />;
   if (!gid || groupMissing) return <GroupGate notFoundId={groupMissing ? gid : undefined} />;
   if (isQueueMode()) return <QueueView />;
+  if (isSignupMode()) return <SignupPage />;
   if (!groupName) return <div className="min-h-screen bg-on-surface" />;
   if (!authed) return <GroupEntry gid={gid} groupName={groupName} schedule={schedule} onEntered={() => setAuthed(true)} />;
   const renameGroup = async (name: string, slot: ListingSlot | null) => {
@@ -534,6 +536,14 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
         courtFeePerPerson: oldCourtFee // Keep old charge status or update? safest to keep logic consistent
       };
     }));
+  };
+
+  // นำรายชื่อที่ลงชื่อล่วงหน้าเข้าเป็นผู้เล่นวันนี้ (ใช้ระดับมือที่เคยจำไว้ ไม่มี = N) · ข้ามคนที่อยู่ในคิวแล้ว
+  const importSignups = (names: string[]) => {
+    const fresh = names.filter(n => !members.some(m => m.name.toLowerCase() === n.toLowerCase() && m.status !== 'resting'));
+    if (fresh.length === 0) { alert('ทุกคนอยู่ในรายชื่อวันนี้แล้ว'); return; }
+    if (!confirm(`นำเข้า ${fresh.length} คนเป็นผู้เล่นวันนี้ใช่ไหม?`)) return;
+    fresh.forEach(n => addMember(n, rankMemory[n] ?? 'N'));
   };
 
   const addMember = (name: string, rank: Rank) => {
@@ -1727,6 +1737,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                 {activeTab === 'settings' && (
                   <SettingsTab
                     isHelper={isHelper}
+                    onImportSignups={importSignups}
                     plan={plan}
                     promptPay={promptPay}
                     onChangePromptPay={setPromptPay}

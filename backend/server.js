@@ -5,6 +5,7 @@ import { ensureSchema } from './schema.js';
 import { hashPin, verifyPin, issueToken, requireGroupAuth, requireOwnerRole, loginThrottle, recordLoginResult } from './auth.js';
 import { auth, me, admin, publicConfig } from './users.js';
 import { listings, mountGroupListing } from './listings.js';
+import { ensureSignupTables, mountPublicSignup, mountGroupSignup } from './signup.js';
 import { ensurePlans, gateState, mountGroupPlan, effectivePlan } from './plans.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -83,6 +84,7 @@ pub.get('/queue', async (req, res) => {
   }
 });
 
+mountPublicSignup(pub);
 app.use('/api/g/:gid', pub);
 
 const r = express.Router({ mergeParams: true });
@@ -653,6 +655,7 @@ r.post('/state', async (req, res) => {
 // ตั้ง/เปลี่ยนชื่อก๊วน (ตั้งครั้งแรกตอนเข้าก๊วนที่เพิ่งสร้าง)
 mountGroupListing(r);
 mountGroupPlan(r);
+mountGroupSignup(r);
 
 r.put('/name', requireOwnerRole, async (req, res) => {
   const name = String(req.body?.name || '').trim();
@@ -734,6 +737,7 @@ app.get('*', (req, res) => {
 });
 
 ensureSchema()
+  .then(() => ensureSignupTables())
   .then(() => ensurePlans())
   .then(() => {
     app.listen(port, '0.0.0.0', () => {
