@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { UserPlus, Trash2, ChevronRight, FileText, X, Search, UserRound, LayoutGrid, List } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { RankPickerModal } from './RankPickerModal';
 import { Member, Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS, GameRecord, SessionRecord, PlayerProfile } from '../types';
 import { PlayerProfileModal } from './PlayerProfileModal';
 import { PlayerBadge } from './Avatar';
@@ -43,6 +44,7 @@ export function MembersTab({
   const [profileId, setProfileId] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'board'>('list');
   const [showBulkRank, setShowBulkRank] = useState(false);
+  const [rankPickId, setRankPickId] = useState<string | null>(null);
 
   const filtered = members.filter(m => {
     const matchSearch = m.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -148,18 +150,11 @@ export function MembersTab({
                 </div>
 
                 <div className="flex items-start gap-4">
-                <div className="relative group/rank cursor-pointer shrink-0">
+                <button type="button" onClick={(e) => { e.stopPropagation(); setRankPickId(member.id); }} aria-label={`เปลี่ยนระดับมือของ ${member.name}`}
+                  className="relative group/rank shrink-0 active:scale-95 transition-transform">
                   <PlayerBadge rank={member.rank} name={member.name} profile={profiles[member.id]} className="w-14 h-14 rounded-2xl text-base transition-transform group-hover/rank:scale-105" />
-                  <select
-                    value={member.rank}
-                    onChange={(e) => onUpdateRank(member.id, e.target.value as Rank)}
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                  >
-                    {RANKS.map(r => (
-                      <option key={r} value={r}>{r}{RANK_LEVEL_LABELS[r] ? ` (${RANK_LEVEL_LABELS[r]})` : ''}</option>
-                    ))}
-                  </select>
-                </div>
+                  <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-white shadow ring-1 ring-on-surface/10 flex items-center justify-center text-[10px]">✎</span>
+                </button>
                 <div className="flex-1 min-w-0">
                   <div className="group/name relative">
                     <h3 className="font-bold text-base text-on-surface truncate group-hover/name:opacity-0 transition-opacity">{member.name}</h3>
@@ -268,14 +263,8 @@ export function MembersTab({
                   เปลี่ยนระดับมือ <ChevronRight size={12} className={cn("transition-transform", showBulkRank ? "-rotate-90" : "rotate-90")} />
                 </button>
                 {showBulkRank && (
-                  <div className="absolute bottom-full left-0 mb-2 p-2 bg-on-surface border border-white/10 rounded-2xl shadow-xl flex gap-1 animate-in fade-in slide-in-from-bottom-2">
-                    {RANKS.map(r => (
-                      <button key={r} onClick={() => { onBulkUpdateRank(selectedIds, r); setSelectedIds([]); setShowBulkRank(false); }}
-                        className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform", RANK_COLORS[r])}>
-                        {r}
-                      </button>
-                    ))}
-                  </div>
+                  <RankPickerModal title={`เปลี่ยนระดับมือ ${selectedIds.length} คน`} subtitle="แตะระดับที่ต้องการ ใช้กับทุกคนที่เลือก"
+                    onPick={r => { onBulkUpdateRank(selectedIds, r); setSelectedIds([]); setShowBulkRank(false); }} onClose={() => setShowBulkRank(false)} />
                 )}
               </div>
               <button 
@@ -309,6 +298,10 @@ export function MembersTab({
         </div>
       )}
       </>)}
+      {rankPickId && (() => {
+        const m = members.find(x => x.id === rankPickId);
+        return m ? <RankPickerModal title={`ระดับมือของ ${m.name}`} current={m.rank} onPick={r => { onUpdateRank(m.id, r); setRankPickId(null); }} onClose={() => setRankPickId(null)} /> : null;
+      })()}
       {profileId && (
         <PlayerProfileModal playerId={profileId} members={members} gameHistory={gameHistory} sessionHistory={sessionHistory}
           profile={profiles[profileId]} onSaveProfile={onSaveProfile} onClose={() => setProfileId(null)} />

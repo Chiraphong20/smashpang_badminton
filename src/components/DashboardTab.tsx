@@ -12,6 +12,7 @@ import { POSModal } from './POSModal';
 import { PlayerBadge } from './Avatar';
 import { PromptPayQR } from './PromptPayQR';
 import { PromptPayModal } from './PromptPayModal';
+import { RankPickerModal } from './RankPickerModal';
 import { useModalHotkeys } from '../hooks/useModalHotkeys';
 
 interface Props {
@@ -89,6 +90,7 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
   const displayAmount = manualAmount !== null ? manualAmount : totalBalance;
 
   const [showQr, setShowQr] = useState(false);
+  const [showRankPick, setShowRankPick] = useState(false);
   const [editingSnackIndex, setEditingSnackIndex] = useState<number | null>(null);
   const [tempPrice, setTempPrice] = useState<string>('');
 
@@ -124,16 +126,11 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
               {member.rank}
             </div>
             {!isReadOnly && (
-              <select
-                value={member.rank}
-                onChange={(e) => onUpdateRank(member.id, e.target.value as Rank)}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              >
-                {[...RANKS].map(r => (
-                  <option key={r} value={r}>{r}{RANK_LEVEL_LABELS[r] ? ` (${RANK_LEVEL_LABELS[r]})` : ''}</option>
-                ))}
-              </select>
+              <button type="button" onClick={() => setShowRankPick(true)} aria-label="เปลี่ยนระดับมือ" className="absolute inset-0 rounded-[1.5rem]">
+                <span className="absolute -top-1.5 -left-1.5 w-6 h-6 rounded-full bg-white shadow ring-1 ring-on-surface/10 flex items-center justify-center text-xs">✎</span>
+              </button>
             )}
+            {showRankPick && <RankPickerModal title={`ระดับมือของ ${member.name}`} current={member.rank} onPick={r => { onUpdateRank(member.id, r); setShowRankPick(false); }} onClose={() => setShowRankPick(false)} />}
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="font-headline font-black text-3xl tracking-tight leading-none mb-2">{member.name}</h2>
@@ -469,6 +466,7 @@ export function DashboardTab({
   sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay, onChangePromptPay, canEditPromptPay = true
 }: Props) {
   const [showPayQr, setShowPayQr] = useState(false);
+  const [rankPickId, setRankPickId] = useState<string | null>(null);
   // เก็บแค่ id ไม่เก็บ snapshot ของ Member ทั้งก้อน — เดี๋ยว modal จะได้อ่านข้อมูลสดจาก currentMembers
   // เสมอ (ไม่งั้นพอลบสินค้า/แก้ไขอะไรระหว่างเปิด modal อยู่ จะไม่เห็นการเปลี่ยนแปลงจนกว่าจะปิดเปิดใหม่)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
@@ -837,8 +835,9 @@ export function DashboardTab({
               <span className="px-4 py-1.5 rounded-full text-white text-sm font-black shadow-sm" style={{ backgroundColor: t.color }}>{t.emoji} โหมด{MODE_LABELS[mode]}</span>
               <p className="text-sm font-bold flex-1 min-w-[12rem]" style={{ color: t.color }}>{desc}</p>
               <button onClick={() => setShowPayQr(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-white text-xs font-black shadow-sm border hover:shadow transition-all" style={{ color: t.color, borderColor: t.color + '55' }}>
-                📱 สแกนจ่าย
+                className="px-5 py-2.5 rounded-2xl text-white text-sm font-black shadow-lg ring-4 ring-white/70 hover:scale-105 active:scale-95 transition-transform flex items-center gap-2"
+                style={{ background: 'linear-gradient(135deg, #1a4f9c, #0ea5e9)', boxShadow: '0 8px 20px -6px rgba(14,165,233,.65)' }}>
+                <span className="text-base">📱</span> สแกนจ่าย
               </button>
               {onSwitchMode && (
                 <div className="relative">
@@ -1040,11 +1039,9 @@ export function DashboardTab({
                   <div className="relative shrink-0">
                     <PlayerBadge rank={m.rank} name={m.name} profile={profiles[m.id]} className="w-11 h-11 rounded-xl text-sm shadow-sm" />
                     {!isReadOnly && (
-                      <select value={m.rank} onClick={e => e.stopPropagation()}
-                        onChange={e => { e.stopPropagation(); onUpdateRank(m.id, e.target.value as Rank); }}
-                        className="absolute inset-0 opacity-0 w-full h-full" title="เปลี่ยนระดับมือ">
-                        {RANKS.map(r => <option key={r} value={r}>{r} ({RANK_LEVEL_LABELS[r]})</option>)}
-                      </select>
+                      <button type="button" onClick={e => { e.stopPropagation(); setRankPickId(m.id); }} aria-label="เปลี่ยนระดับมือ" className="absolute inset-0 rounded-xl">
+                        <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-white shadow ring-1 ring-on-surface/10 flex items-center justify-center text-[10px]">✎</span>
+                      </button>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1218,18 +1215,9 @@ export function DashboardTab({
                   <div className="relative group/rank shrink-0">
                     <PlayerBadge rank={m.rank} name={m.name} profile={profiles[m.id]} className={cn('w-10 h-10 rounded-xl text-sm shadow-sm transition-transform group-hover:scale-105', isHighlighted && 'scale-105')} />
                     {!isReadOnly && (
-                      <select
-                        value={m.rank}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          onUpdateRank(m.id, e.target.value as Rank);
-                        }}
-                        onClick={e => e.stopPropagation()}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        title="เปลี่ยนระดับมือ"
-                      >
-                        {RANKS.map(r => <option key={r} value={r}>{r} ({RANK_LEVEL_LABELS[r]})</option>)}
-                      </select>
+                      <button type="button" onClick={e => { e.stopPropagation(); setRankPickId(m.id); }} aria-label="เปลี่ยนระดับมือ" title="เปลี่ยนระดับมือ" className="absolute inset-0 rounded-xl">
+                        <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-white shadow ring-1 ring-on-surface/10 flex items-center justify-center text-[10px]">✎</span>
+                      </button>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1471,6 +1459,11 @@ export function DashboardTab({
           </div>
         ))}
       </div>
+
+      {rankPickId && (() => {
+        const rm = members.find(x => x.id === rankPickId);
+        return rm ? <RankPickerModal title={`ระดับมือของ ${rm.name}`} current={rm.rank} onPick={r => { onUpdateRank(rm.id, r); setRankPickId(null); }} onClose={() => setRankPickId(null)} /> : null;
+      })()}
 
       {showPayQr && <PromptPayModal promptPay={promptPay} onChange={onChangePromptPay} canEdit={canEditPromptPay} onClose={() => setShowPayQr(false)} />}
 
