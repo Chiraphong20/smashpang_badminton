@@ -1637,6 +1637,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     onSwitchMode={switchMode}
                     profiles={playerProfiles}
                     promptPay={promptPay}
+                    onChangePromptPay={setPromptPay}
+                    canEditPromptPay={!isHelper}
                     members={members} courts={courts} snacks={snacks} 
                     paymentHistory={paymentHistory} gameHistory={gameHistory}
                     onUpdateRank={updateMemberRank}

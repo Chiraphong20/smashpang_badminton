@@ -11,6 +11,7 @@ import { th } from 'date-fns/locale';
 import { POSModal } from './POSModal';
 import { PlayerBadge } from './Avatar';
 import { PromptPayQR } from './PromptPayQR';
+import { PromptPayModal } from './PromptPayModal';
 import { useModalHotkeys } from '../hooks/useModalHotkeys';
 
 interface Props {
@@ -55,6 +56,9 @@ interface Props {
   /** โปรไฟล์ผู้เล่น — มีรูปแล้วแสดงรูปแทนกล่องระดับมือ */
   profiles?: Record<string, PlayerProfile>;
   promptPay?: { id: string; name: string };
+  onChangePromptPay?: (v: { id: string; name: string }) => void;
+  /** ผู้ช่วยแก้พร้อมเพย์ไม่ได้ */
+  canEditPromptPay?: boolean;
 }
 
 
@@ -462,8 +466,9 @@ export function DashboardTab({
   onAddCourt, isSidebarCollapsed, onCheckIn, onRemove, onResetDay,
   onClearBoard, onUpdateGame,
   isSyncing, onImportLine,
-  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay
+  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay, onChangePromptPay, canEditPromptPay = true
 }: Props) {
+  const [showPayQr, setShowPayQr] = useState(false);
   // เก็บแค่ id ไม่เก็บ snapshot ของ Member ทั้งก้อน — เดี๋ยว modal จะได้อ่านข้อมูลสดจาก currentMembers
   // เสมอ (ไม่งั้นพอลบสินค้า/แก้ไขอะไรระหว่างเปิด modal อยู่ จะไม่เห็นการเปลี่ยนแปลงจนกว่าจะปิดเปิดใหม่)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
@@ -831,6 +836,10 @@ export function DashboardTab({
             <div className="flex flex-wrap items-center gap-3">
               <span className="px-4 py-1.5 rounded-full text-white text-sm font-black shadow-sm" style={{ backgroundColor: t.color }}>{t.emoji} โหมด{MODE_LABELS[mode]}</span>
               <p className="text-sm font-bold flex-1 min-w-[12rem]" style={{ color: t.color }}>{desc}</p>
+              <button onClick={() => setShowPayQr(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-white text-xs font-black shadow-sm border hover:shadow transition-all" style={{ color: t.color, borderColor: t.color + '55' }}>
+                📱 สแกนจ่าย
+              </button>
               {onSwitchMode && (
                 <div className="relative">
                   <button onClick={() => setModeMenu(v => !v)}
@@ -1462,6 +1471,8 @@ export function DashboardTab({
           </div>
         ))}
       </div>
+
+      {showPayQr && <PromptPayModal promptPay={promptPay} onChange={onChangePromptPay} canEdit={canEditPromptPay} onClose={() => setShowPayQr(false)} />}
 
       {/* ── Checkout Modal ── */}
       <AnimatePresence>
