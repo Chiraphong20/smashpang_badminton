@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { Member, Court, PaymentRecord, GameRecord, Snack, Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS, SessionRecord, RANK_WEIGHTS } from '../types';
+import { Member, Court, PaymentRecord, GameRecord, Snack, Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS, SessionRecord, RANK_WEIGHTS, SessionMode, ModeConfig, MODE_LABELS, MODE_THEME } from '../types';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { POSModal } from './POSModal';
@@ -40,6 +40,13 @@ interface Props {
   sessionStartDate?: number | null;
   /** กดการ์ด "คอร์ดที่กำลังเล่น" เพื่อไปหน้าจัดคอร์ทของคอร์ทนั้น */
   onOpenCourt?: (courtId: string) => void;
+  /** โหมดก๊วนวันนี้ + ราคา — ใช้แสดงแบนเนอร์โหมดและเครื่องคิดหารเท่า */
+  mode?: SessionMode;
+  modeConfig?: ModeConfig;
+  courtFeePerPerson?: number;
+  shuttlePrice?: number;
+  onChangeConfig?: (patch: Partial<ModeConfig>) => void;
+  onApplySplit?: () => void;
 }
 
 
@@ -430,7 +437,7 @@ export function DashboardTab({
   onAddCourt, isSidebarCollapsed, onCheckIn, onRemove, onResetDay,
   onClearBoard, onUpdateGame,
   isSyncing, onImportLine,
-  sessionStartDate, onOpenCourt
+  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit
 }: Props) {
   // เก็บแค่ id ไม่เก็บ snapshot ของ Member ทั้งก้อน — เดี๋ยว modal จะได้อ่านข้อมูลสดจาก currentMembers
   // เสมอ (ไม่งั้นพอลบสินค้า/แก้ไขอะไรระหว่างเปิด modal อยู่ จะไม่เห็นการเปลี่ยนแปลงจนกว่าจะปิดเปิดใหม่)
@@ -777,6 +784,57 @@ export function DashboardTab({
           />
         )}
       </AnimatePresence>
+
+      {/* ── แบนเนอร์โหมดก๊วนวันนี้ (ถ้าเป็นหารเท่า มีเครื่องคิดหารต่อคน) ── */}
+      {!isReadOnly && mode && modeConfig && (() => {
+        const t = MODE_THEME[mode];
+        const splitPlayers = currentMembers.filter(m => m.gamesPlayed > 0).length;
+        const courtTotal = modeConfig.splitCourtTotal || 0;
+        const shuttleTotal = modeConfig.splitShuttleTotal || 0;
+        const courtShare = splitPlayers ? Math.ceil(courtTotal / splitPlayers) : 0;
+        const shuttleShare = splitPlayers ? Math.ceil(shuttleTotal / splitPlayers) : 0;
+        const share = courtShare + shuttleShare;
+        const applied = !!modeConfig.splitApplied && Object.keys(modeConfig.splitApplied).length > 0;
+        const money = 'w-full px-3 py-2.5 rounded-xl bg-white font-headline font-black text-lg focus:outline-none focus:ring-2';
+        const desc = mode === 'perGame' ? `ค่าสนาม ฿${courtFeePerPerson ?? 0}/คน (ครั้งเดียวต่อวัน) + ค่าลูก ฿${shuttlePrice ?? 0}/ลูก ตามเกมที่ตีจริง`
+          : mode === 'buffet' ? `฿${modeConfig.buffetPrice}/คน ตีกี่เกมก็ได้ (คิดตอนจบเกมแรกของแต่ละคน)`
+            : mode === 'fun' ? 'ไม่คิดเงิน — สุ่มจับคู่และบันทึกแพ้/ชนะ/เสมอ'
+              : 'รวมค่าสนามกับค่าลูก แล้วหารเท่ากันทุกคนที่ได้ตี';
+        return (
+          <div className="rounded-3xl p-4 sm:p-5 border-2 space-y-3" style={{ backgroundColor: t.soft, borderColor: t.color + '55' }}>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="px-4 py-1.5 rounded-full text-white text-sm font-black shadow-sm" style={{ backgroundColor: t.color }}>{t.emoji} โหมด{MODE_LABELS[mode]}</span>
+              <p className="text-sm font-bold flex-1 min-w-[12rem]" style={{ color: t.color }}>{desc}</p>
+            </div>
+            {mode === 'split' && onChangeConfig && (
+              <div className="space-y-3">
+                <div className="grid sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                  <label className="space-y-1"><span className="text-xs font-bold text-on-surface/55">ค่าเช่าสนามรวม (฿)</span>
+                    <input type="number" inputMode="decimal" min={0} className={money} style={{ ['--tw-ring-color' as string]: t.color }} value={courtTotal || ''} placeholder="0"
+                      onChange={e => onChangeConfig({ splitCourtTotal: Math.max(0, Number(e.target.value) || 0) })} /></label>
+                  <label className="space-y-1"><span className="text-xs font-bold text-on-surface/55">ค่าลูกรวม (฿)</span>
+                    <input type="number" inputMode="decimal" min={0} className={money} style={{ ['--tw-ring-color' as string]: t.color }} value={shuttleTotal || ''} placeholder="0"
+                      onChange={e => onChangeConfig({ splitShuttleTotal: Math.max(0, Number(e.target.value) || 0) })} /></label>
+                  <div className="rounded-2xl bg-white px-4 py-2 text-center min-w-[9rem]">
+                    <p className="text-[11px] font-bold text-on-surface/45">หาร {splitPlayers} คน</p>
+                    <p className="font-headline font-black text-2xl leading-tight" style={{ color: t.color }}>฿{share}<span className="text-xs font-bold text-on-surface/50"> /คน</span></p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button onClick={onApplySplit} disabled={!splitPlayers || !(courtTotal + shuttleTotal)}
+                    className="px-5 py-2.5 rounded-xl text-white font-black text-sm disabled:opacity-40" style={{ backgroundColor: t.color }}>
+                    {applied ? 'คำนวณและเรียกเก็บใหม่' : 'เรียกเก็บเข้าบิลทุกคน'}
+                  </button>
+                  <p className="text-xs font-semibold text-on-surface/55 flex-1 min-w-[12rem]">
+                    {splitPlayers === 0 ? 'หารจากคนที่ได้ตีอย่างน้อย 1 เกม — ตอนนี้ยังไม่มีใครตี'
+                      : `ค่าสนาม ฿${courtShare} + ค่าลูก ฿${shuttleShare} ต่อคน (ปัดขึ้น)${applied ? ' · เรียกเก็บแล้ว กดซ้ำได้ถ้ามีคนมาเพิ่ม' : ' · กรอกยอดแล้วกดเรียกเก็บเมื่อจบก๊วน'}`}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Quick Stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">

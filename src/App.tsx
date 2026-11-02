@@ -24,7 +24,7 @@ import { ManageProductsModal } from './components/ManageProductsModal';
 import { ImportMembersModal } from './components/ImportMembersModal';
 import { LogsTab } from './components/LogsTab';
 import { QueueView } from './components/QueueView';
-import { RANK_WEIGHTS } from './types';
+import { RANK_WEIGHTS, MODE_THEME, MODE_LABELS } from './types';
 import { useModalHotkeys } from './hooks/useModalHotkeys';
 
 type Tab = 'dashboard' | 'members' | 'courts' | 'settings' | 'logs' | 'stats';
@@ -1472,6 +1472,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                 <h4 className="font-headline font-black text-xl text-white tracking-tight line-clamp-2 break-words">{groupName}</h4>
                 <p className="text-xs font-semibold text-white/60">SmashPang</p>
                 {schedule.map((s, i) => <p key={i} className="text-xs font-bold text-white/60">{formatSlot(s)}</p>)}
+                {sessionMode && <span className="inline-block mt-1.5 px-2.5 py-0.5 rounded-full bg-white text-primary text-[11px] font-black">{MODE_THEME[activeMode].emoji} โหมด{MODE_LABELS[activeMode]}</span>}
               </motion.div>
             )}
             <button onClick={toggleSidebar}
@@ -1598,6 +1599,8 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
               <motion.div key={activeTab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
                 {activeTab === 'dashboard' && (
                   <DashboardTab 
+                    mode={activeMode} modeConfig={modeConfig} courtFeePerPerson={courtFeePerPerson} shuttlePrice={shuttlePrice}
+                    onChangeConfig={patch => setModeConfig(prev => ({ ...prev, ...patch }))} onApplySplit={applySplit}
                     onOpenCourt={(id) => { setFocusCourtId(id); setActiveTab('courts'); }}
                     members={members} courts={courts} snacks={snacks} 
                     paymentHistory={paymentHistory} gameHistory={gameHistory}
