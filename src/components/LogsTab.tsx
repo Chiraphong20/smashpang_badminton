@@ -17,7 +17,7 @@ interface Props {
   paymentHistory: PaymentRecord[];
   onViewSession: (session: SessionRecord) => void;
   onActiveTab: (tab: 'dashboard' | 'logs' | 'members' | 'courts' | 'settings') => void;
-  onUpdateGame: (id: string, players: string[], shuttles: number) => void;
+  onUpdateGame: (id: string, players: string[], shuttles: number, result: GameResult) => void;
   onPullSession: (date: string) => Promise<SessionRecord | undefined>;
   profiles?: Record<string, PlayerProfile>;
 }
@@ -25,7 +25,11 @@ interface Props {
 interface SessionDate { id: string; date: number; }
 interface MemberHistoryRecord { sessionId: string; date: number; gamesPlayed: number; cost: number; paid: number; }
 
-function EditGameModal({ game, members, profiles = {}, onSave, onClose }: { game: GameRecord, members: Member[], profiles?: Record<string, PlayerProfile>, onSave: (pids: string[], shuttles: number) => void, onClose: () => void }) {
+type GameResult = 'A' | 'B' | 'draw' | null;
+const resultOf = (g: GameRecord): GameResult => g.scoreA === undefined || g.scoreB === undefined ? null : g.scoreA > g.scoreB ? 'A' : g.scoreB > g.scoreA ? 'B' : 'draw';
+
+function EditGameModal({ game, members, profiles = {}, onSave, onClose }: { game: GameRecord, members: Member[], profiles?: Record<string, PlayerProfile>, onSave: (pids: string[], shuttles: number, result: GameResult) => void, onClose: () => void }) {
+  const [result, setResult] = React.useState<GameResult>(() => resultOf(game));
   // 4 ช่องแบบเดียวกับหน้าจัดการคอร์ด: ช่อง 1-2 = ทีม A, ช่อง 3-4 = ทีม B
   const [slots, setSlots] = React.useState<(string | null)[]>(() => [0, 1, 2, 3].map(i => game.players[i]?.id ?? null));
   const [shuttles, setShuttles] = React.useState(game.shuttlesUsed);
@@ -33,7 +37,7 @@ function EditGameModal({ game, members, profiles = {}, onSave, onClose }: { game
   const perShuttle = game.shuttlesUsed > 0 ? game.shuttleCostPerPerson / game.shuttlesUsed : 0;
   const filled = slots.filter(Boolean).length;
 
-  useModalHotkeys({ onClose, onSubmit: () => { if (filled === 4) onSave(slots as string[], shuttles); } });
+  useModalHotkeys({ onClose, onSubmit: () => { if (filled === 4) onSave(slots as string[], shuttles, result); } });
 
   // เลือกคนที่อยู่ในอีกช่องอยู่แล้ว = สลับตำแหน่งกัน (ไม่ให้ซ้ำ)
   const setSlot = (idx: number, id: string | null) => setSlots(prev => {
@@ -85,6 +89,23 @@ function EditGameModal({ game, members, profiles = {}, onSave, onClose }: { game
           </div>
           {team('B', [2, 3])}
 
+          <div className="pt-3 border-t border-on-surface/5 space-y-2">
+            <p className="text-xs font-bold text-on-surface/55">ผลแพ้ชนะ</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                ['A', 'ทีม A ชนะ', 'bg-blue-600 text-white', 'bg-blue-50 text-blue-700'],
+                ['B', 'ทีม B ชนะ', 'bg-orange-500 text-white', 'bg-orange-50 text-orange-600'],
+                ['draw', 'เสมอ', 'bg-slate-600 text-white', 'bg-slate-100 text-slate-600'],
+                [null, 'ไม่บันทึกผล', 'bg-on-surface text-white', 'bg-background text-on-surface/50'],
+              ] as [GameResult, string, string, string][]).map(([v, label, on, off]) => (
+                <button key={String(v)} onClick={() => setResult(v)}
+                  className={cn('h-12 rounded-2xl font-black text-sm transition-all active:scale-95', result === v ? on + ' shadow-md' : off)}>
+                  {result === v && '✓ '}{label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-on-surface/5">
             <div className="flex items-center gap-2.5">
               <span className="text-xs font-bold text-on-surface/55 leading-tight">จำนวน<br />ลูกแบด</span>
@@ -107,7 +128,7 @@ function EditGameModal({ game, members, profiles = {}, onSave, onClose }: { game
         <div className="mt-5 pt-4 border-t border-on-surface/5">
           <button
             disabled={filled !== 4}
-            onClick={() => onSave(slots as string[], shuttles)}
+            onClick={() => onSave(slots as string[], shuttles, result)}
             className="w-full bg-primary text-white font-black py-4 rounded-3xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-2"
           >
             <Check size={20} strokeWidth={3} /> {filled === 4 ? 'บันทึกการแก้ไข' : `เลือกผู้เล่นให้ครบ 4 คน (${filled}/4)`}
@@ -248,8 +269,8 @@ export function LogsTab({ gameHistory, sessionHistory, members, paymentHistory, 
             members={members}
             profiles={profiles}
             onClose={() => setEditingGame(null)}
-            onSave={(pids, shuttles) => {
-              onUpdateGame(editingGame.id, pids, shuttles);
+            onSave={(pids, shuttles, result) => {
+              onUpdateGame(editingGame.id, pids, shuttles, result);
               setEditingGame(null);
             }}
           />
@@ -568,6 +589,11 @@ export function LogsTab({ gameHistory, sessionHistory, members, paymentHistory, 
                     <Trophy size={16} className="text-primary/60" />
                     <span className="font-black text-sm">{game.courtName}</span>
                   </div>
+                  {resultOf(game) && (
+                    <span className={cn('px-3 py-1.5 rounded-full text-xs font-black shrink-0', resultOf(game) === 'A' ? 'bg-blue-100 text-blue-700' : resultOf(game) === 'B' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-600')}>
+                      {resultOf(game) === 'A' ? 'ทีม A ชนะ' : resultOf(game) === 'B' ? 'ทีม B ชนะ' : 'เสมอ'}
+                    </span>
+                  )}
                   <button onClick={() => setEditingGame(game)} className="text-xs font-bold text-primary hover:underline">
                     ✏️ แก้ไขยอด/ผู้เล่น
                   </button>

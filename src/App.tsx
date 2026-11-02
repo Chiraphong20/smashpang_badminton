@@ -479,9 +479,19 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     })));
   };
 
-  const updateGame = (gameId: string, newPlayerIds: string[], newShuttles: number) => {
+  // result: 'A' | 'B' | 'draw' = ผลแพ้ชนะ (เก็บเป็น 1-0 / 0-1 / 0-0 เหมือนตอนจบเกม) · null = ไม่บันทึกผล
+  const updateGame = (gameId: string, newPlayerIds: string[], newShuttles: number, result: 'A' | 'B' | 'draw' | null = null) => {
     const game = gameHistory.find(g => g.id === gameId);
     if (!game) return;
+
+    const cur = game.scoreA === undefined || game.scoreB === undefined ? null : game.scoreA > game.scoreB ? 'A' : game.scoreB > game.scoreA ? 'B' : 'draw';
+    // ผลไม่เปลี่ยน → คงคะแนนเดิมไว้ (เกมเก่าบางเกมมีคะแนนจริง)
+    const score = result === cur ? { scoreA: game.scoreA, scoreB: game.scoreB } : result === 'A' ? { scoreA: 1, scoreB: 0 } : result === 'B' ? { scoreA: 0, scoreB: 1 } : result === 'draw' ? { scoreA: 0, scoreB: 0 } : { scoreA: undefined, scoreB: undefined };
+    // แก้แค่ผลแพ้ชนะ (ผู้เล่น/ลูกไม่เปลี่ยน) → ไม่ต้องคิดเงินใหม่
+    if (newShuttles === game.shuttlesUsed && newPlayerIds.join('|') === game.players.map(p => p.id).join('|')) {
+      setGameHistory(prev => prev.map(g => g.id === gameId ? { ...g, ...score } : g));
+      return;
+    }
 
     const oldPlayerIds = game.players.map(p => p.id);
     const oldShuttles = game.shuttlesUsed;
@@ -533,7 +543,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
         players: newPlayers, 
         shuttlesUsed: newShuttles, 
         shuttleCostPerPerson: newShuttleCost,
-        courtFeePerPerson: oldCourtFee // Keep old charge status or update? safest to keep logic consistent
+        courtFeePerPerson: oldCourtFee, // Keep old charge status or update? safest to keep logic consistent
+        ...score
       };
     }));
   };
