@@ -1,6 +1,7 @@
 import express from 'express';
 import { pool } from './db.js';
 import { effectivePlan } from './plans.js';
+import { requireOwnerRole } from './auth.js';
 
 // หน้า "หาก๊วน" — เจ้าของก๊วนเปิดประกาศรับสมาชิกได้ (วัน/เวลา/สถานที่/ระดับมือ)
 // ข้อมูลสาธารณะไม่ส่ง id (รหัสเข้าก๊วน) ออกไป — คนที่สนใจติดต่อผ่านช่องทางที่เจ้าของก๊วนใส่ไว้
@@ -113,7 +114,7 @@ export function mountGroupListing(r) {
     }
   });
 
-  r.put('/listing', async (req, res) => {
+  r.put('/listing', requireOwnerRole, async (req, res) => {
     const v = sanitize(req.body);
     if (!v) return res.status(400).json({ error: 'invalid_listing' });
     if (v.listed && (!v.venue || JSON.parse(v.schedule).length === 0)) {

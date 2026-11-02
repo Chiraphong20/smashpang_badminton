@@ -42,8 +42,8 @@ export function GroupGate({ notFoundId }: Props) {
     const r = await userApi<Me>('/me');
     if (!r.ok) { setMe(null); if (r.status === 401 || r.status === 403) clearUserToken(); return; }
     setMe(r.data);
-    const g = await userApi<MyGroup[]>('/me/groups');
-    if (g.ok) setMyGroups(g.data);
+    const [g, h] = await Promise.all([userApi<MyGroup[]>('/me/groups'), userApi<MyGroup[]>('/me/helping')]);
+    if (g.ok) setMyGroups([...g.data, ...(h.ok ? h.data : [])]);
   };
 
   useEffect(() => {
@@ -126,7 +126,7 @@ function OwnerArea({ me, myGroups, notice, onReload, onLogout }: {
                 className="w-full flex items-center justify-between px-5 py-3 border-2 border-gray-100 hover:border-primary/40 hover:bg-primary/5 rounded-xl transition-all text-left disabled:opacity-40">
                 <span className="min-w-0">
                   <span className="block font-bold text-gray-900 truncate">{g.name}</span>
-                  <span className="block text-xs text-gray-400">{g.id}{g.name === g.id ? ' · ยังไม่ได้ตั้งชื่อ' : ''}{g.status === 'suspended' ? ' · ถูกระงับ' : ''}</span>
+                  <span className="block text-xs text-gray-400">{g.id}{g.role === 'helper' ? ` · ผู้ช่วย${g.ownerName ? ' ของ ' + g.ownerName : ''}` : g.name === g.id ? ' · ยังไม่ได้ตั้งชื่อ' : ''}{g.status === 'suspended' ? ' · ถูกระงับ' : ''}</span>
                 </span>
                 <span className="text-gray-300 ml-3">›</span>
               </button>

@@ -15,6 +15,13 @@ export const getToken = (gid = getGroupId()): string | null => {
 export const setToken = (gid: string, token: string) => {
   try { localStorage.setItem(tokenKey(gid), token); } catch { /* storage blocked */ }
 };
+// บทบาทในก๊วนนี้ (อ่านจาก token — ใช้ซ่อนเมนูเท่านั้น สิทธิ์จริงตรวจที่เซิร์ฟเวอร์) · token เก่าไม่มี role = เจ้าของ
+export const getGroupRole = (gid = getGroupId()): 'owner' | 'helper' => {
+  try {
+    const p = (getToken(gid) || '').split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(decodeURIComponent(escape(atob(p)))).r === 'helper' ? 'helper' : 'owner';
+  } catch { return 'owner'; }
+};
 export const clearToken = (gid = getGroupId()) => {
   try { localStorage.removeItem(tokenKey(gid)); } catch { /* storage blocked */ }
 };
@@ -65,7 +72,7 @@ export async function fetchGroupInfo(gid: string): Promise<{ id: string; name: s
 
 // ───────────────────────── บัญชีผู้ใช้ (เจ้าของก๊วน / แอดมินระบบ) ─────────────────────────
 export interface Me { id: string; email: string | null; username: string | null; displayName: string; role: 'owner' | 'admin'; status: string }
-export interface MyGroup { id: string; name: string; status: string; createdAt: number }
+export interface MyGroup { id: string; name: string; status: string; createdAt: number; role?: 'owner' | 'helper'; ownerName?: string | null }
 
 const USER_TOKEN_KEY = 'sp_user_token';
 export const getUserToken = (): string | null => { try { return localStorage.getItem(USER_TOKEN_KEY); } catch { return null; } };

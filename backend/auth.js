@@ -25,8 +25,9 @@ export function verifyPin(pin, stored) {
 
 const sign = (payload) => crypto.createHmac('sha256', secret).update(payload).digest('base64url');
 
-export function issueToken(groupId) {
-  const payload = Buffer.from(JSON.stringify({ g: groupId, exp: Date.now() + TOKEN_TTL_MS })).toString('base64url');
+// role: 'owner' (เจ้าของ/แอดมินระบบ) หรือ 'helper' (ผู้ช่วย — ตั้งค่าหลักไม่ได้) · token เก่าที่ไม่มี role ถือเป็น owner
+export function issueToken(groupId, role = 'owner') {
+  const payload = Buffer.from(JSON.stringify({ g: groupId, r: role, exp: Date.now() + TOKEN_TTL_MS })).toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
 
@@ -52,6 +53,12 @@ export function requireGroupAuth(req, res, next) {
   if (!data || data.g !== req.params.gid) {
     return res.status(401).json({ error: 'unauthorized' });
   }
+  req.groupRole = data.r === 'helper' ? 'helper' : 'owner';
+  next();
+}
+
+export function requireOwnerRole(req, res, next) {
+  if (req.groupRole === 'helper') return res.status(403).json({ error: 'owner_only' });
   next();
 }
 

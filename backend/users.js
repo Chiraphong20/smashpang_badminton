@@ -182,7 +182,54 @@ me.get('/', (req, res) => res.json(userDto(req.user)));
 
 me.get('/groups', wrap(async (req, res) => {
   const [rows] = await pool.query('SELECT id, name, status, created_at FROM `groups` WHERE owner_id = ? ORDER BY created_at DESC', [req.user.id]);
-  res.json(rows.map(g => ({ id: g.id, name: g.name, status: g.status, createdAt: Number(g.created_at) })));
+  res.json(rows.map(g => ({ id: g.id, name: g.name, status: g.status, createdAt: Number(g.created_at), role: 'owner' })));
+}));
+
+// ก๊วนที่ฉันเป็นผู้ช่วย
+me.get('/helping', wrap(async (req, res) => {
+  const [rows] = await pool.query(
+    'SELECT g.id, g.name, g.status, g.created_at, u.display_name AS owner_name FROM group_helpers h JOIN `groups` g ON g.id = h.group_id LEFT JOIN users u ON u.id = g.owner_id WHERE h.user_id = ? ORDER BY h.added_at DESC',
+    [req.user.id]
+  );
+  res.json(rows.map(g => ({ id: g.id, name: g.name, status: g.status, createdAt: Number(g.created_at), role: 'helper', ownerName: g.owner_name })));
+}));
+
+// จัดการผู้ช่วย — เจ้าของก๊วน (หรือแอดมินระบบ) เท่านั้น
+const ownedGroup = async (req, res) => {
+  const [rows] = await pool.query('SELECT owner_id FROM `groups` WHERE id = ?', [req.params.gid]);
+  if (!rows[0]) { res.status(404).json({ error: 'group_not_found' }); return false; }
+  if (rows[0].owner_id !== req.user.id && req.user.role !== 'admin') { res.status(403).json({ error: 'forbidden' }); return false; }
+  return rows[0];
+};
+
+me.get('/groups/:gid/helpers', wrap(async (req, res) => {
+  if (!(await ownedGroup(req, res))) return;
+  const [rows] = await pool.query(
+    'SELECT u.id, u.username, u.email, u.display_name, h.added_at FROM group_helpers h JOIN users u ON u.id = h.user_id WHERE h.group_id = ? ORDER BY h.added_at',
+    [req.params.gid]
+  );
+  res.json(rows.map(u => ({ id: u.id, username: u.username, email: u.email, displayName: u.display_name, addedAt: Number(u.added_at) })));
+}));
+
+me.post('/groups/:gid/helpers', wrap(async (req, res) => {
+  const g = await ownedGroup(req, res);
+  if (!g) return;
+  const ident = String(req.body?.identifier || '').trim();
+  if (!ident) return res.status(400).json({ error: 'missing_identifier' });
+  const [found] = await pool.query("SELECT id, username, email, display_name, status FROM users WHERE username = ? OR email = ?", [ident, ident.toLowerCase()]);
+  const u = found[0];
+  if (!u || u.status !== 'active') return res.status(404).json({ error: 'user_not_found' });
+  if (u.id === g.owner_id) return res.status(400).json({ error: 'is_owner' });
+  const [[cnt]] = await pool.query('SELECT COUNT(*) AS n FROM group_helpers WHERE group_id = ?', [req.params.gid]);
+  if (Number(cnt.n) >= 10) return res.status(400).json({ error: 'too_many_helpers' });
+  await pool.query('INSERT IGNORE INTO group_helpers (group_id, user_id, added_at) VALUES (?, ?, ?)', [req.params.gid, u.id, Date.now()]);
+  res.json({ id: u.id, username: u.username, email: u.email, displayName: u.display_name, addedAt: Date.now() });
+}));
+
+me.delete('/groups/:gid/helpers/:uid', wrap(async (req, res) => {
+  if (!(await ownedGroup(req, res))) return;
+  await pool.query('DELETE FROM group_helpers WHERE group_id = ? AND user_id = ?', [req.params.gid, req.params.uid]);
+  res.json({ ok: true });
 }));
 
 // สร้างก๊วน (ต้องเป็นสมาชิกที่ยืนยันแล้ว) — รูปแบบก๊วนเลือกในระบบตอนเริ่มแต่ละวัน
@@ -223,9 +270,15 @@ me.post('/groups/:gid/enter', wrap(async (req, res) => {
   const [rows] = await pool.query('SELECT owner_id, status FROM `groups` WHERE id = ?', [req.params.gid]);
   const g = rows[0];
   if (!g) return res.status(404).json({ error: 'group_not_found' });
-  if (g.owner_id !== req.user.id && req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
+  const isOwner = g.owner_id === req.user.id || req.user.role === 'admin';
+  let role = 'owner';
+  if (!isOwner) {
+    const [h] = await pool.query('SELECT 1 FROM group_helpers WHERE group_id = ? AND user_id = ?', [req.params.gid, req.user.id]);
+    if (h.length === 0) return res.status(403).json({ error: 'forbidden' });
+    role = 'helper';
+  }
   if (g.status === 'suspended' && req.user.role !== 'admin') return res.status(403).json({ error: 'group_suspended' });
-  res.json({ token: issueToken(req.params.gid) });
+  res.json({ token: issueToken(req.params.gid, role), role });
 }));
 
 // ───────────────────────── /api/admin (แอดมินระบบ) ─────────────────────────

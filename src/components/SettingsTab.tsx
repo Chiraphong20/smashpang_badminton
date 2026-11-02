@@ -13,6 +13,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { ListingEditor } from './ListingEditor';
+import { HelpersManager } from './HelpersManager';
 import { PromptPayQR } from './PromptPayQR';
 import { parsePromptPayId } from '../lib/promptpay';
 import type { PlanInfo } from '../lib/api';
@@ -37,6 +38,8 @@ interface Props {
   onLogout: () => void;
   onSwitchGroup: () => void;
   plan?: PlanInfo | null;
+  /** ผู้ช่วย: ซ่อนส่วนที่เป็นของเจ้าของก๊วน (แพ็กเกจ พร้อมเพย์ ประกาศ ล้างข้อมูล) */
+  isHelper?: boolean;
   promptPay?: { id: string; name: string };
   onChangePromptPay?: (v: { id: string; name: string }) => void;
   queueUrl: string;
@@ -50,7 +53,7 @@ export function SettingsTab({
   courtFeePerPerson, setCourtFeePerPerson,
   shuttlePrice, setShuttlePrice,
   onSeedMockHistory, onResetDay, onFactoryReset,
-  rankMemory, onLogout, onSwitchGroup, plan, promptPay, onChangePromptPay, queueUrl,
+  rankMemory, onLogout, onSwitchGroup, plan, isHelper, promptPay, onChangePromptPay, queueUrl,
   sessionMode, setSessionMode, modeConfig, setModeConfig
 }: Props) {
   const [copied, setCopied] = useState(false);
@@ -101,7 +104,7 @@ export function SettingsTab({
         </div>
       </section>
 
-      {plan && (
+      {plan && !isHelper && (
         <section className="bg-white rounded-[2rem] p-4 sm:p-5 shadow-sm border border-on-surface/5 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-headline font-black text-base">แพ็กเกจ: {plan.plan.name}</p>
@@ -128,7 +131,7 @@ export function SettingsTab({
         </section>
       )}
 
-      {onChangePromptPay && (
+      {onChangePromptPay && !isHelper && (
         <section className="bg-white rounded-[2rem] p-4 sm:p-6 shadow-sm border border-on-surface/5 space-y-4">
           <div>
             <h3 className="font-headline font-black text-lg flex items-center gap-2">📱 พร้อมเพย์รับเงิน</h3>
@@ -159,7 +162,9 @@ export function SettingsTab({
         </section>
       )}
 
-      <ListingEditor />
+      {!isHelper && <HelpersManager />}
+
+      {!isHelper && <ListingEditor />}
 
       {/* Session Mode */}
       <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-5">
@@ -240,7 +245,7 @@ export function SettingsTab({
       </div>
 
       {/* System Maintenance Section */}
-      <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
+      {!isHelper && <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
         <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40">การจัดการระบบ</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <button onClick={onSeedMockHistory} 
@@ -268,7 +273,7 @@ export function SettingsTab({
             <Trash2 size={20} className="text-error group-hover:scale-125 transition-all" />
           </button>
         </div>
-      </section>
+      </section>}
 
       {/* QR Code Section */}
       <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5">

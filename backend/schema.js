@@ -149,6 +149,19 @@ export async function ensureSchema() {
     )
   `);
 
+  // ผู้ช่วยจัดก๊วน — เข้าก๊วนของเจ้าของได้ด้วยบัญชีตัวเอง (จัดคอร์ท/เก็บเงินได้ แต่ตั้งค่าหลักไม่ได้)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS group_helpers (
+      group_id VARCHAR(40) NOT NULL,
+      user_id VARCHAR(40) NOT NULL,
+      added_at BIGINT NOT NULL,
+      PRIMARY KEY (group_id, user_id),
+      INDEX idx_helpers_user (user_id),
+      FOREIGN KEY (group_id) REFERENCES \`groups\`(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   // ประกาศหาสมาชิก (หน้า "หาก๊วน")
   await pool.query(`
     CREATE TABLE IF NOT EXISTS group_listings (

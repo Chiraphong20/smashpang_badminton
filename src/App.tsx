@@ -10,7 +10,7 @@ import { GroupEntry } from './components/GroupEntry';
 import { GroupGate } from './components/GroupGate';
 import { FindGroups } from './components/FindGroups';
 import { Landing } from './components/Landing';
-import { apiFetch, apiJson, getGroupId, getToken, clearToken, clearUserToken, isQueueMode, fetchGroupInfo, rememberGroup, groupUrl, formatSlot, ListingSlot, fetchPlan, PlanInfo } from './lib/api';
+import { apiFetch, apiJson, getGroupId, getToken, clearToken, clearUserToken, isQueueMode, fetchGroupInfo, rememberGroup, groupUrl, formatSlot, ListingSlot, fetchPlan, PlanInfo, getGroupRole } from './lib/api';
 import { DashboardTab } from './components/DashboardTab';
 import { CourtsTab } from './components/CourtsTab';
 import { MembersTab } from './components/MembersTab';
@@ -94,10 +94,10 @@ export default function App() {
     }
     return true;
   };
-  return <GroupApp groupName={groupName} schedule={schedule} needsName={groupName === gid} onRename={renameGroup} />;
+  return <GroupApp isHelper={getGroupRole(gid) === 'helper'} groupName={groupName} schedule={schedule} needsName={groupName === gid} onRename={renameGroup} />;
 }
 
-function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: string; schedule: ListingSlot[]; needsName: boolean; onRename: (name: string, slot: ListingSlot | null) => Promise<boolean> }) {
+function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHelper: boolean; groupName: string; schedule: ListingSlot[]; needsName: boolean; onRename: (name: string, slot: ListingSlot | null) => Promise<boolean> }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [courts, setCourts] = useState<Court[]>([]);
   const [snacks, setSnacks] = useState<Snack[]>([]);
@@ -1396,7 +1396,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
       <AnimatePresence>
         {isInitialLoading && <SplashScreen key="splash" groupName={groupName} />}
       </AnimatePresence>
-      {!isInitialLoading && needsName && <GroupNameSetup onSave={onRename} />}
+      {!isInitialLoading && needsName && !isHelper && <GroupNameSetup onSave={onRename} />}
       {!isInitialLoading && !needsName && sessionMode === null && quotaReached && !sessionStartDate && !quotaDismissed && (
         <QuotaBlock message={quotaMessage} onDismiss={() => setQuotaDismissed(true)} onLogout={logout} />
       )}
@@ -1726,6 +1726,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                 )}
                 {activeTab === 'settings' && (
                   <SettingsTab
+                    isHelper={isHelper}
                     plan={plan}
                     promptPay={promptPay}
                     onChangePromptPay={setPromptPay}

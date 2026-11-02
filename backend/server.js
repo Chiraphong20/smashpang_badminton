@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { pool } from './db.js';
 import { ensureSchema } from './schema.js';
-import { hashPin, verifyPin, issueToken, requireGroupAuth, loginThrottle, recordLoginResult } from './auth.js';
+import { hashPin, verifyPin, issueToken, requireGroupAuth, requireOwnerRole, loginThrottle, recordLoginResult } from './auth.js';
 import { auth, me, admin, publicConfig } from './users.js';
 import { listings, mountGroupListing } from './listings.js';
 import { ensurePlans, gateState, mountGroupPlan, effectivePlan } from './plans.js';
@@ -598,6 +598,8 @@ r.post('/state', async (req, res) => {
   const gid = req.params.gid;
   const { _version, ...stateObj } = req.body;
   try {
+    // ผู้ช่วยแก้บัญชีพร้อมเพย์ไม่ได้ — คงค่าเดิมของเจ้าของไว้ (กันโอนเงินเข้าบัญชีอื่น)
+    if (req.groupRole === 'helper') delete stateObj.promptPay;
     const blocked = await gateState(gid, stateObj);
     if (blocked) return res.status(403).json({ error: 'plan_limit', ...blocked });
   } catch (err) {
@@ -652,7 +654,7 @@ r.post('/state', async (req, res) => {
 mountGroupListing(r);
 mountGroupPlan(r);
 
-r.put('/name', async (req, res) => {
+r.put('/name', requireOwnerRole, async (req, res) => {
   const name = String(req.body?.name || '').trim();
   if (!name || name.length > 100) return res.status(400).json({ error: 'invalid_name' });
   try {
