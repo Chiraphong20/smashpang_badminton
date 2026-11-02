@@ -191,5 +191,6 @@ export async function ensureSchema() {
   };
   await addColumn('users', 'username', 'username VARCHAR(30) NULL UNIQUE');
   await addColumn('groups', 'owner_id', 'owner_id VARCHAR(40) NULL');
+  await addColumn('group_listings', 'poster', 'poster MEDIUMTEXT NULL');
   await addColumn('groups', 'status', "status ENUM('active', 'suspended') NOT NULL DEFAULT 'active'");
 }

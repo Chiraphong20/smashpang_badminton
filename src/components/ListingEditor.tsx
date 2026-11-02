@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Megaphone, Plus, Trash2 } from 'lucide-react';
+import { Megaphone, Plus, Trash2, ImagePlus } from 'lucide-react';
+import { resizeToPoster } from '../lib/image';
 import { cn } from '../lib/utils';
 import { apiFetch, apiJson, DAY_NAMES, ListingSlot } from '../lib/api';
 import { RANKS } from '../types';
@@ -14,12 +15,14 @@ interface Form {
   levels: string[];
   price: string;
   contact: string;
+  poster: string;
 }
 
-const EMPTY: Form = { listed: false, description: '', venue: '', area: '', mapUrl: '', schedule: [], levels: [], price: '', contact: '' };
+const EMPTY: Form = { listed: false, description: '', venue: '', area: '', mapUrl: '', schedule: [], levels: [], price: '', contact: '', poster: '' };
 
 const ERRORS: Record<string, string> = {
   listing_incomplete: 'ต้องใส่สถานที่และวันเวลาอย่างน้อย 1 รายการก่อนเปิดประกาศ',
+  invalid_poster: 'รูปโปสเตอร์ไม่ถูกต้องหรือใหญ่เกินไป ลองเลือกรูปอื่น',
   invalid_listing: 'ข้อมูลไม่ถูกต้อง (ลิงก์แผนที่ต้องเป็นลิงก์จาก Google Maps หรือพิกัด เช่น 13.7563, 100.5018)',
 };
 
@@ -42,6 +45,13 @@ export function ListingEditor() {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [posterDirty, setPosterDirty] = useState(false);
+
+  const pickPoster = async (file?: File) => {
+    if (!file) return;
+    try { set('poster', await resizeToPoster(file)); setPosterDirty(true); }
+    catch { setMessage({ ok: false, text: 'เปิดรูปนี้ไม่ได้ ลองไฟล์ JPG/PNG' }); }
+  };
 
   useEffect(() => {
     apiFetch('/listing').then(async res => {
@@ -62,7 +72,10 @@ export function ListingEditor() {
   const save = async () => {
     setBusy(true); setMessage(null);
     try {
-      const res = await apiJson('/listing', form, 'PUT');
+      // ส่งรูปเฉพาะเมื่อมีการเปลี่ยน (รูปเดิมอยู่บนเซิร์ฟเวอร์แล้ว)
+      const { poster, ...rest } = form;
+      const res = await apiJson('/listing', posterDirty ? form : rest, 'PUT');
+      if (res.ok) setPosterDirty(false);
       if (res.ok) setMessage({ ok: true, text: form.listed ? 'บันทึกแล้ว — ก๊วนของคุณขึ้นในหน้าหาก๊วน' : 'บันทึกแล้ว (ยังไม่เปิดประกาศ)' });
       else {
         const d = await res.json().catch(() => ({}));
@@ -86,6 +99,27 @@ export function ListingEditor() {
         </label>
       </div>
       <p className="text-xs text-on-surface/50">แสดงในหน้า "หาก๊วน" ให้นักแบดที่อยากหาที่ตีค้นเจอ — ไม่เผยรหัสก๊วนของคุณ</p>
+
+      <div className="space-y-2">
+        <p className="text-xs font-black text-on-surface/50">โปสเตอร์ก๊วน <span className="font-bold text-on-surface/30">(ไม่บังคับ — แสดงบนการ์ดในหน้าหาก๊วน)</span></p>
+        <div className="flex flex-wrap items-start gap-4">
+          {form.poster ? (
+            <img src={form.poster} alt="โปสเตอร์ก๊วน" className="w-40 max-h-56 object-contain rounded-2xl border border-on-surface/10 bg-background" />
+          ) : (
+            <div className="w-40 h-40 rounded-2xl border-2 border-dashed border-on-surface/15 flex flex-col items-center justify-center gap-1 text-on-surface/35">
+              <ImagePlus size={28} /><span className="text-xs font-bold">ยังไม่มีโปสเตอร์</span>
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary/10 text-primary font-black text-sm cursor-pointer hover:bg-primary/15">
+              <ImagePlus size={16} /> {form.poster ? 'เปลี่ยนรูป' : 'เลือกรูปโปสเตอร์'}
+              <input type="file" accept="image/*" className="hidden" onChange={e => { pickPoster(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            {form.poster && <button onClick={() => { set('poster', ''); setPosterDirty(true); }} className="block text-xs font-bold text-on-surface/40 hover:text-error">ลบโปสเตอร์</button>}
+            <p className="text-xs font-semibold text-on-surface/40 max-w-xs">ระบบย่อรูปให้อัตโนมัติ · แนะนำรูปแนวตั้งหรือสี่เหลี่ยม · กด "บันทึกประกาศ" เพื่อเผยแพร่</p>
+          </div>
+        </div>
+      </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         <input className={input} placeholder="สถานที่ เช่น สนามแบด ABC *" maxLength={150} value={form.venue} onChange={e => set('venue', e.target.value)} />

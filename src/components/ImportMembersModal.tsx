@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS } from '../types';
 import { parseLineNames } from '../lib/lineNames';
+import { similarNames } from '../lib/nameMatch';
 
 interface ParsedMember {
   id: string;
@@ -18,6 +19,8 @@ interface Props {
   rankMemory: Record<string, Rank>;
   existingNames: string[];
   isSessionMode?: boolean;
+  /** เปิดมาพร้อมข้อความนี้และวิเคราะห์ให้เลย (เช่น รายชื่อที่ลงชื่อล่วงหน้า) */
+  initialText?: string;
 }
 
 // Parse LINE signup text → ชื่อ (และระดับมือถ้าพิมพ์มา) · ดู src/lib/lineNames.ts
@@ -48,7 +51,7 @@ function parseMasterList(text: string): { name: string; rank: Rank }[] {
   return results;
 }
 
-export function ImportMembersModal({ open, onClose, onImport, rankMemory, existingNames, isSessionMode }: Props) {
+export function ImportMembersModal({ open, onClose, onImport, rankMemory, existingNames, isSessionMode, initialText }: Props) {
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<ParsedMember[]>([]);
   const [step, setStep] = useState<'paste' | 'confirm'>('paste');
@@ -57,9 +60,12 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
   // จริงๆ ก็ตาม) ไม่ให้ไปโดนเงื่อนไข "นำเข้า" ทันทีก่อนจะได้เห็นหน้าจอเปลี่ยนเป็นหน้ายืนยันเลือกมือ
   const confirmEnteredAtRef = React.useRef(0);
 
-  const handleParse = () => {
+  // ชื่อที่ผู้จัดตอบว่า "ไม่ใช่คนเดียวกัน" แล้ว จะไม่ถามซ้ำ
+  const [notSame, setNotSame] = useState<Set<string>>(new Set());
+
+  const handleParse = (override?: string) => {
     if (mode === 'line') {
-      const results = parseLine(text);
+      const results = parseLine(override ?? text);
       if (results.length === 0) { alert('ไม่พบรายชื่อ — วางข้อความลงชื่อที่ขึ้นต้นด้วยเลขข้อ เช่น "1. ชื่อ"'); return; }
       setParsed(results.map((res, i) => ({
         id: `import-${i}`,
@@ -79,6 +85,17 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
       setStep('confirm');
       confirmEnteredAtRef.current = Date.now();
     }
+  };
+
+  // เปิดพร้อมข้อความที่เตรียมไว้ → วิเคราะห์ทันที
+  useEffect(() => {
+    if (open && initialText) { setText(initialText); setNotSame(new Set()); handleParse(initialText); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialText]);
+
+  // ตอบว่า "ใช่คนเดียวกัน" → ใช้ชื่อและระดับมือของสมาชิกเดิม
+  const mergeInto = (id: string, existing: string) => {
+    setParsed(prev => prev.map(p => p.id === id ? { ...p, name: existing, rank: rankMemory[existing] ?? p.rank } : p));
   };
 
   const updateRank = (id: string, rank: Rank) => {
@@ -124,7 +141,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
   };
 
   const handleClose = () => {
-    setText(''); setParsed([]); setStep('paste');
+    setText(''); setParsed([]); setStep('paste'); setNotSame(new Set());
     onClose();
   };
 
@@ -232,6 +249,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
             <div className="space-y-2">
               {parsed.map((p, idx) => {
                 const isExisting = existingNames.some(n => n.trim().toLowerCase() === p.name.trim().toLowerCase());
+                const similar = !isExisting && mode === 'line' && !notSame.has(p.id) ? similarNames(p.name, existingNames) : [];
                 return (
                   <div key={p.id} className={cn("flex items-center gap-3 rounded-2xl px-4 py-3 transition-colors", isExisting ? "bg-primary/5" : "bg-background")}>
                     <span className="text-xs font-black text-on-surface/30 w-6 text-center shrink-0">{idx + 1}</span>
@@ -244,8 +262,25 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
                       {isExisting && (
                         <p className="text-xs font-semibold text-primary/60 leading-none">สมาชิกเดิมในระบบ ✓</p>
                       )}
-                      {!isExisting && mode === 'line' && (
+                      {!isExisting && mode === 'line' && similar.length === 0 && (
                         <p className="text-xs font-semibold text-secondary leading-none">สมาชิกใหม่ (เกสต์) 👤</p>
+                      )}
+                      {similar.length > 0 && (
+                        <div className="mt-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 space-y-1.5">
+                          <p className="text-xs font-black text-amber-700">ชื่อใกล้เคียงสมาชิกเดิม — ใช่คนเดียวกันไหม?</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {similar.map(s => (
+                              <button key={s} onClick={() => mergeInto(p.id, s)}
+                                className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-black hover:bg-amber-600 active:scale-95 transition-all">
+                                ใช่ ใช้ “{s}”
+                              </button>
+                            ))}
+                            <button onClick={() => setNotSame(prev => new Set(prev).add(p.id))}
+                              className="px-3 py-1.5 rounded-lg bg-white text-on-surface/60 text-xs font-black border border-on-surface/10 hover:bg-background">
+                              ไม่ใช่ เป็นคนใหม่
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                     {/* Rank selector */}
@@ -288,7 +323,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
             ยกเลิก
           </button>
           {step === 'paste' ? (
-            <button onClick={handleParse} disabled={!text.trim()}
+            <button onClick={() => handleParse()} disabled={!text.trim()}
               className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-2xl font-black text-sm disabled:opacity-40 hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/20">
               วิเคราะห์รายชื่อ →
             </button>

@@ -6,6 +6,7 @@ import { Member, Court, Snack, GameRecord, Rank, RANKS, RANK_WEIGHTS, RANK_COLOR
 import { format } from 'date-fns';
 import { POSModal } from './POSModal';
 import { PlayerBadge } from './Avatar';
+import { ShuttleIcon } from './ShuttleIcon';
 import { useModalHotkeys } from '../hooks/useModalHotkeys';
 
 let draggingPlayerId: string | null = null;
@@ -1060,7 +1061,7 @@ export function CourtsTab({
               {/* Action bar */}
               <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-on-surface/5">
                 <div className="flex items-center gap-2.5">
-                  <span className="text-xs font-bold text-on-surface/55 leading-tight hidden sm:block">จำนวน<br />ลูกแบด</span>
+                  <span className="text-xs font-bold text-on-surface/55 leading-tight hidden sm:flex items-center gap-1.5"><ShuttleIcon size={22} className="text-primary" /><span>จำนวน<br />ลูกแบด</span></span>
                   <div className="flex items-center rounded-xl bg-slate-100 border border-slate-200 overflow-hidden">
                     <button onClick={() => addShuttle(-1)} disabled={selected.shuttlecocks <= 0}
                       className="w-11 h-11 font-black text-xl hover:bg-slate-200 transition-colors disabled:opacity-30">−</button>

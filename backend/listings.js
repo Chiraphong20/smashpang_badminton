@@ -42,8 +42,18 @@ function toDto(row) {
     levels: parseJson(row.levels, []),
     price: row.price || '',
     contact: row.contact || '',
+    posterUrl: row.poster_key ? `/api/listings/poster/${row.poster_key}?v=${Number(row.updated_at)}` : '',
     updatedAt: Number(row.updated_at),
   };
+}
+
+// รูปโปสเตอร์: data URL ของ JPEG/PNG/WebP ไม่เกิน ~600KB · '' = ลบรูป · undefined = ไม่แตะ
+const POSTER_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+function sanitizePoster(v) {
+  if (v === undefined) return undefined;
+  if (v === '' || v === null) return null;
+  if (typeof v !== 'string' || v.length > 800000 || !POSTER_RE.test(v)) return false;
+  return v;
 }
 
 // อ่าน/ตรวจค่าที่เจ้าของก๊วนส่งมา — คืน null ถ้าไม่ผ่าน
@@ -75,10 +85,32 @@ function sanitize(body) {
 
 // ── สาธารณะ: GET /api/listings?day=0-6&level=S1&q=ข้อความ ──
 export const listings = express.Router();
+// รูปโปสเตอร์ของก๊วนที่เปิดประกาศ (key = แฮชของรหัสก๊วน ไม่เผยรหัสจริง)
+listings.get('/poster/:key', async (req, res) => {
+  try {
+    const key = String(req.params.key || '');
+    if (!/^[0-9a-f]{16}$/.test(key)) return res.status(404).end();
+    const [rows] = await pool.query(
+      `SELECT l.poster FROM group_listings l JOIN \`groups\` g ON g.id = l.group_id
+       WHERE l.listed = 1 AND g.status = 'active' AND l.poster IS NOT NULL AND LEFT(SHA2(l.group_id, 256), 16) = ? LIMIT 1`,
+      [key]
+    );
+    const m = rows[0]?.poster && /^data:(image\/[a-z]+);base64,(.+)$/.exec(rows[0].poster);
+    if (!m) return res.status(404).end();
+    res.set({ 'Content-Type': m[1], 'Cache-Control': 'public, max-age=300' });
+    res.send(Buffer.from(m[2], 'base64'));
+  } catch (err) {
+    console.error(err);
+    res.status(500).end();
+  }
+});
+
 listings.get('/', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT g.name, l.* FROM group_listings l
+      `SELECT g.name, l.group_id, l.listed, l.description, l.venue, l.area, l.map_url, l.schedule, l.levels, l.price, l.contact, l.updated_at,
+         IF(l.poster IS NULL OR l.poster = '', NULL, LEFT(SHA2(l.group_id, 256), 16)) AS poster_key
+       FROM group_listings l
        JOIN \`groups\` g ON g.id = l.group_id
        WHERE l.listed = 1 AND g.status = 'active'
        ORDER BY l.updated_at DESC LIMIT 200`
@@ -107,7 +139,7 @@ export function mountGroupListing(r) {
       );
       const row = rows[0];
       if (!row) return res.status(404).json({ error: 'group_not_found' });
-      res.json({ listed: !!row.listed, ...toDto({ ...row, updated_at: row.updated_at || 0 }) });
+      res.json({ listed: !!row.listed, ...toDto({ ...row, updated_at: row.updated_at || 0 }), poster: row.poster || '' });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'server_error' });
@@ -117,6 +149,8 @@ export function mountGroupListing(r) {
   r.put('/listing', requireOwnerRole, async (req, res) => {
     const v = sanitize(req.body);
     if (!v) return res.status(400).json({ error: 'invalid_listing' });
+    const poster = sanitizePoster(req.body?.poster);
+    if (poster === false) return res.status(400).json({ error: 'invalid_poster' });
     if (v.listed && (!v.venue || JSON.parse(v.schedule).length === 0)) {
       return res.status(400).json({ error: 'listing_incomplete' });
     }
@@ -135,6 +169,7 @@ export function mountGroupListing(r) {
            price = VALUES(price), contact = VALUES(contact), updated_at = VALUES(updated_at)`,
         [req.params.gid, v.listed, v.description, v.venue, v.area, v.mapUrl, v.schedule, v.levels, v.price, v.contact, Date.now()]
       );
+      if (poster !== undefined) await pool.query('UPDATE group_listings SET poster = ? WHERE group_id = ?', [poster, req.params.gid]);
       res.json({ success: true });
     } catch (err) {
       console.error(err);

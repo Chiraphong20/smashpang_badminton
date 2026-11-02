@@ -115,6 +115,8 @@ export interface Listing {
   levels: string[];
   price: string;
   contact: string;
+  /** โปสเตอร์ของก๊วน (ถ้ามี) */
+  posterUrl?: string;
   updatedAt: number;
 }
 

@@ -170,6 +170,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
   const [showManageProducts, setShowManageProducts] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importIsSession, setImportIsSession] = useState(false);
+  const [importInitialText, setImportInitialText] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
@@ -549,12 +550,12 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     }));
   };
 
-  // นำรายชื่อที่ลงชื่อล่วงหน้าเข้าเป็นผู้เล่นวันนี้ (ใช้ระดับมือที่เคยจำไว้ ไม่มี = N) · ข้ามคนที่อยู่ในคิวแล้ว
+  // นำรายชื่อที่ลงชื่อล่วงหน้าเข้าเป็นผู้เล่นวันนี้ — ผ่านหน้าตรวจรายชื่อเดียวกับนำเข้าจาก LINE
+  // (ถามเมื่อชื่อใกล้เคียงสมาชิกเดิม · เลือกระดับมือก่อนยืนยัน)
   const importSignups = (names: string[]) => {
-    const fresh = names.filter(n => !members.some(m => m.name.toLowerCase() === n.toLowerCase() && m.status !== 'resting'));
-    if (fresh.length === 0) { alert('ทุกคนอยู่ในรายชื่อวันนี้แล้ว'); return; }
-    if (!confirm(`นำเข้า ${fresh.length} คนเป็นผู้เล่นวันนี้ใช่ไหม?`)) return;
-    fresh.forEach(n => addMember(n, rankMemory[n] ?? 'N'));
+    setImportIsSession(true);
+    setImportInitialText(names.map((n, i) => `${i + 1}. ${n}`).join('\n'));
+    setShowImport(true);
   };
 
   const addMember = (name: string, rank: Rank) => {
@@ -1628,11 +1629,12 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
           <ManageProductsModal open={showManageProducts} onClose={() => setShowManageProducts(false)} snacks={snacks} onSave={setSnacks} />
           <ImportMembersModal
             open={showImport}
-            onClose={() => setShowImport(false)}
+            onClose={() => { setShowImport(false); setImportInitialText(''); }}
             onImport={importMembers}
             rankMemory={rankMemory}
             existingNames={members.map(m => m.name)}
             isSessionMode={importIsSession}
+            initialText={importInitialText}
           />
 
           {/* Main Content Area */}

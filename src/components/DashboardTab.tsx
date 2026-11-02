@@ -13,6 +13,7 @@ import { PlayerBadge } from './Avatar';
 import { PromptPayQR } from './PromptPayQR';
 import { PromptPayModal } from './PromptPayModal';
 import { RankPickerModal } from './RankPickerModal';
+import { ShuttleIcon } from './ShuttleIcon';
 import { useModalHotkeys } from '../hooks/useModalHotkeys';
 
 interface Props {
@@ -906,7 +907,7 @@ export function DashboardTab({
         </div>
         {[
           { label: 'จำนวนเกมวันนี้', value: totalGames, unit: 'เกม', icon: Trophy, bg: '#fff1e6', fg: '#ea580c' },
-          { label: 'ลูกแบดที่ใช้', value: totalShuttles.toFixed(0), unit: 'ลูก', icon: Bolt, bg: '#f1eafc', fg: '#5b21b6' },
+          { label: 'ลูกแบดที่ใช้', value: totalShuttles.toFixed(0), unit: 'ลูก', icon: ShuttleIcon, bg: '#f1eafc', fg: '#5b21b6' },
           { label: 'จำนวนผู้เล่น', value: currentMembers.filter(m => m.gamesPlayed > 0 || m.status !== 'resting' || (m.balance ?? 0) > 0).length, unit: 'คน', icon: Users, bg: '#e3f6f3', fg: '#0f766e' },
           { label: 'ยอดขายสินค้า', value: '฿' + totalSnacks.toLocaleString(), unit: '', icon: ShoppingCart, bg: '#fff3c4', fg: '#a16207' },
         ].map(s => (

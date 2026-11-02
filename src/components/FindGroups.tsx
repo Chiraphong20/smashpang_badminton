@@ -81,8 +81,21 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 
 export function GroupCard({ g, day }: { g: Listing; day: number | null }) {
   const schedule = [...g.schedule].sort((a, b) => a.day - b.day);
+  const [zoom, setZoom] = React.useState(false);
   return (
     <article className="rounded-3xl border-2 border-gray-100 p-6 space-y-4 hover:border-primary/30 transition-all">
+      {g.posterUrl && (
+        <>
+          <button onClick={() => setZoom(true)} className="block w-full rounded-2xl overflow-hidden bg-gray-50 border border-gray-100" aria-label="ดูโปสเตอร์ขนาดใหญ่">
+            <img src={g.posterUrl} alt={`โปสเตอร์ ${g.name}`} loading="lazy" className="w-full max-h-72 object-contain mx-auto" />
+          </button>
+          {zoom && (
+            <div className="fixed inset-0 z-[500] bg-black/80 flex items-center justify-center p-4" onClick={() => setZoom(false)}>
+              <img src={g.posterUrl} alt={`โปสเตอร์ ${g.name}`} className="max-w-full max-h-full rounded-2xl shadow-2xl" />
+            </div>
+          )}
+        </>
+      )}
       <div>
         <h2 className="font-headline font-black text-2xl text-gray-900 break-words">{g.name}</h2>
         {g.description && <p className="text-sm text-gray-500 mt-1 break-words">{g.description}</p>}
