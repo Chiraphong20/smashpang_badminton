@@ -19,6 +19,8 @@ interface Props {
   rankMemory: Record<string, Rank>;
   existingNames: string[];
   isSessionMode?: boolean;
+  /** คนที่อยู่ในก๊วนวันนี้แล้ว: ชื่อ(ตัวพิมพ์เล็ก) → จำนวนเกมที่ตีไปแล้ว */
+  todayGames?: Record<string, number>;
   /** เปิดมาพร้อมข้อความนี้และวิเคราะห์ให้เลย (เช่น รายชื่อที่ลงชื่อล่วงหน้า) */
   initialText?: string;
 }
@@ -51,7 +53,7 @@ function parseMasterList(text: string): { name: string; rank: Rank }[] {
   return results;
 }
 
-export function ImportMembersModal({ open, onClose, onImport, rankMemory, existingNames, isSessionMode, initialText }: Props) {
+export function ImportMembersModal({ open, onClose, onImport, rankMemory, existingNames, isSessionMode, todayGames = {}, initialText }: Props) {
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<ParsedMember[]>([]);
   const [step, setStep] = useState<'paste' | 'confirm'>('paste');
@@ -108,13 +110,24 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
     setSameOk(prev => { if (!prev.has(id)) return prev; const n = new Set(prev); n.delete(id); return n; }); // แก้ชื่อแล้ว ให้ตรวจใหม่
   };
   const isDupOf = (name: string) => existingNames.some(n => n.trim().toLowerCase() === name.trim().toLowerCase());
-  const unresolvedDups = mode === 'line' ? parsed.filter(p => isDupOf(p.name) && !sameOk.has(p.id)) : [];
+  // ชื่อที่ตรงกับคนที่อยู่ในก๊วนวันนี้แล้ว — ถ้าไม่ตอบว่าเป็นคนละคน จะถูกข้าม (ไม่รีเซ็ตยอดของคนเดิม)
+  const todayOf = (name: string) => (isSessionMode ? todayGames[name.trim().toLowerCase()] : undefined);
+  const isSkipped = (p: ParsedMember) => todayOf(p.name) !== undefined;
+  const importable = parsed.filter(p => p.name.trim() && !isSkipped(p));
+  const unresolvedDups = mode === 'line' ? parsed.filter(p => isDupOf(p.name) && !isSkipped(p) && !sameOk.has(p.id)) : [];
+  // เน็ต → เน็ต 2 → เน็ต 3 (ไม่ชนกับสมาชิกเดิมหรือชื่ออื่นในรายการ)
+  const uniqueName = (base: string) => {
+    const taken = new Set([...existingNames, ...parsed.map(x => x.name)].map(n => n.trim().toLowerCase()));
+    let n = 2;
+    while (taken.has(`${base.trim()} ${n}`.toLowerCase())) n++;
+    return `${base.trim()} ${n}`;
+  };
   const removeParsed = (id: string) => {
     setParsed(prev => prev.filter(p => p.id !== id));
   };
 
   const handleImport = () => {
-    const valid = parsed.filter(p => p.name.trim().length > 0);
+    const valid = importable;
     
     // Check for internal duplicates (clones in the pasted text)
     const seen = new Set<string>();
@@ -260,7 +273,9 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
               )}
               {parsed.map((p, idx) => {
                 const isExisting = existingNames.some(n => n.trim().toLowerCase() === p.name.trim().toLowerCase());
-                const dupAsk = isExisting && mode === 'line' && !sameOk.has(p.id);
+                const todayGamesOf = todayOf(p.name);
+                const todayAsk = isExisting && todayGamesOf !== undefined;
+                const dupAsk = isExisting && mode === 'line' && !todayAsk && !sameOk.has(p.id);
                 const similar = !isExisting && mode === 'line' && !notSame.has(p.id) ? similarNames(p.name, existingNames) : [];
                 return (
                   <div key={p.id} className={cn("flex items-center gap-3 rounded-2xl px-4 py-3 transition-colors", isExisting ? "bg-primary/5" : "bg-background")}>
@@ -272,7 +287,25 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
                         onChange={e => updateName(p.id, e.target.value)}
                         className={cn("w-full bg-transparent font-bold text-sm focus:outline-none truncate", isExisting ? "text-primary" : "text-on-surface")}
                       />
-                      {isExisting && !dupAsk && (
+                      {todayAsk && (
+                        <div className="mt-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 space-y-1.5">
+                          <p className="text-xs font-black text-amber-700">
+                            “{p.name.trim()}” {todayGamesOf! > 0 ? `ตีไปแล้ว ${todayGamesOf} เกม` : 'อยู่ในก๊วนวันนี้แล้ว'} — ใช่คนเดียวกันไหม?
+                          </p>
+                          <p className="text-[11px] font-semibold text-amber-700/80">คนเดียวกัน = ข้ามชื่อนี้ (ข้อมูลเดิมไม่เปลี่ยน) · คนละคน = เพิ่มเป็นคนใหม่</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            <button onClick={() => setSameOk(prev => new Set(prev).add(p.id))} disabled={sameOk.has(p.id)}
+                              className={cn('px-3 py-1.5 rounded-lg text-xs font-black active:scale-95 transition-all', sameOk.has(p.id) ? 'bg-amber-200 text-amber-800' : 'bg-amber-500 text-white hover:bg-amber-600')}>
+                              {sameOk.has(p.id) ? '✓ คนเดียวกัน — ข้ามชื่อนี้' : '✓ คนเดียวกัน (ข้าม)'}
+                            </button>
+                            <button onClick={() => { const nn = uniqueName(p.name); updateName(p.id, nn); }}
+                              className="px-3 py-1.5 rounded-lg bg-white text-on-surface/70 text-xs font-black border border-on-surface/10 hover:bg-background">
+                              คนละคน — เพิ่มเป็น “{uniqueName(p.name)}”
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {isExisting && !dupAsk && !todayAsk && (
                         <p className="text-xs font-semibold text-primary/60 leading-none">สมาชิกเดิมในระบบ ✓</p>
                       )}
                       {dupAsk && (
@@ -356,10 +389,10 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
               วิเคราะห์รายชื่อ →
             </button>
           ) : (
-            <button onClick={handleImport} disabled={parsed.length === 0}
+            <button onClick={handleImport} disabled={importable.length === 0}
               className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-2xl font-black text-sm disabled:opacity-40 hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/20">
               <UserPlus size={16} />
-              นำเข้า {parsed.length} คน
+              นำเข้า {importable.length} คน{parsed.length > importable.length ? ` (ข้าม ${parsed.length - importable.length})` : ''}
             </button>
           )}
         </div>

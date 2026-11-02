@@ -558,7 +558,23 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     setShowImport(true);
   };
 
-  const addMember = (name: string, rank: Rank) => {
+  const uniqueMemberName = (base: string) => {
+    const taken = new Set(members.map(m => m.name.trim().toLowerCase()));
+    let n = 2;
+    while (taken.has(`${base.trim()} ${n}`.toLowerCase())) n++;
+    return `${base.trim()} ${n}`;
+  };
+
+  const addMember = (nameIn: string, rank: Rank) => {
+    let name = nameIn;
+    const dup = members.find(m => m.name.toLowerCase() === name.toLowerCase());
+    // มีชื่อนี้อยู่ในก๊วนวันนี้แล้ว (รอคิว/กำลังเล่น/ตีไปแล้ว) → ถามว่าคนเดียวกันหรือคนละคน แทนที่จะไปล้างข้อมูลของคนเดิม
+    if (dup && isTodayPlayer(dup)) {
+      const next = uniqueMemberName(name);
+      const info = dup.gamesPlayed > 0 ? `ตีไปแล้ว ${dup.gamesPlayed} เกม` : 'อยู่ในก๊วนวันนี้แล้ว';
+      if (!confirm(`มี “${dup.name}” (${info}) อยู่แล้ว\n\nกด ตกลง = เป็นคนละคน เพิ่มเป็น “${next}”\nกด ยกเลิก = คนเดียวกัน ไม่เพิ่มซ้ำ`)) return;
+      name = next;
+    }
     const existing = members.find(m => m.name.toLowerCase() === name.toLowerCase());
     if (!(existing && isTodayPlayer(existing)) && !canAddToday(1)) return;
 
@@ -1326,6 +1342,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
 
       list.forEach((item, i) => {
         const existingIndex = current.findIndex(m => m.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+        // กันพลาด: คนที่อยู่ในก๊วนวันนี้แล้ว (เล่น/มียอดค้าง) ไม่ถูกรีเซ็ตด้วยการนำเข้าซ้ำ
+        if (existingIndex !== -1 && isSessionImport && isTodayPlayer(current[existingIndex])) return;
         if (existingIndex !== -1) {
           // Update details and check-in if it's a session import
           current[existingIndex] = {
@@ -1633,6 +1651,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
             onImport={importMembers}
             rankMemory={rankMemory}
             existingNames={members.map(m => m.name)}
+            todayGames={Object.fromEntries(members.filter(isTodayPlayer).map(m => [m.name.trim().toLowerCase(), m.gamesPlayed]))}
             isSessionMode={importIsSession}
             initialText={importInitialText}
           />
