@@ -660,10 +660,22 @@ export function CourtsTab({
     else alert('ไม่มีสล็อตว่างในคอร์ดนี้');
   };
 
+  // สลับทีม = สุ่มจัดคู่ใหม่ (ไม่ใช่แค่ย้าย A↔B) — ได้คู่ที่ต่างจากเดิมเสมอเมื่อมีผู้เล่นครบ 4 คน
   const swapTeams = () => {
     if (!selected || isActive) return;
-    onUpdateCourt(prev => prev.map(c => c.id === selected.id
-      ? { ...c, players: [c.players[2] ?? null, c.players[3] ?? null, c.players[0] ?? null, c.players[1] ?? null] } : c));
+    const cur = selected.players.slice(0, 4);
+    const ids = cur.filter((x): x is string => !!x);
+    if (ids.length < 2) return;
+    const shuffle = <T,>(arr: T[]) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    // คู่ที่อยู่ทีมเดียวกัน (ไม่สนลำดับ/ฝั่ง) ใช้เทียบว่าจัดใหม่แล้วต่างจากเดิมจริง
+    const key = (p: (string | null)[]) => [[p[0], p[1]].sort().join('+'), [p[2], p[3]].sort().join('+')].sort().join('|');
+    const before = key(cur);
+    let next = cur;
+    for (let i = 0; i < 30; i++) {
+      const cand = shuffle(cur);
+      if (ids.length === 4 ? key(cand) !== before : cand.join() !== cur.join()) { next = cand; break; }
+    }
+    onUpdateCourt(prev => prev.map(c => c.id === selected.id ? { ...c, players: next } : c));
   };
 
   const addShuttle = (delta: number) => {
@@ -1153,7 +1165,7 @@ export function CourtsTab({
                     </button>
                   ) : (
                     <>
-                      <button onClick={swapTeams}
+                      <button onClick={swapTeams} title="สุ่มจัดคู่ใหม่ — กดซ้ำได้จนกว่าจะถูกใจ"
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <RefreshCw size={16} /> สลับทีม
                       </button>
