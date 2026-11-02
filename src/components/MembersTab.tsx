@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
-import { UserPlus, Trash2, ChevronRight, FileText, X, Search } from 'lucide-react';
+import { UserPlus, Trash2, ChevronRight, FileText, X, Search, UserRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { Member, Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS } from '../types';
+import { Member, Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS, GameRecord, SessionRecord, PlayerProfile } from '../types';
+import { PlayerProfileModal } from './PlayerProfileModal';
+import { Avatar } from './Avatar';
 
 interface Props {
   members: Member[];
+  gameHistory?: GameRecord[];
+  sessionHistory?: SessionRecord[];
+  profiles?: Record<string, PlayerProfile>;
+  onSaveProfile?: (id: string, profile: PlayerProfile) => void;
   searchQuery: string;
   onSearch: (query: string) => void;
   onRemove: (id: string) => void;
@@ -25,13 +31,14 @@ interface Props {
 type Filter = 'all' | 'waiting' | 'playing' | 'resting';
 
 export function MembersTab({ 
-  members, searchQuery, onSearch, onRemove, onAddMember, onImportLine, 
+  members, gameHistory = [], sessionHistory = [], profiles = {}, onSaveProfile, searchQuery, onSearch, onRemove, onAddMember, onImportLine, 
   onUpdateRank, onUpdateName, onAddCourt, onCheckIn,
   onBulkCheckIn, onBulkRemove, onBulkUpdateRank
 }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [showBulkRank, setShowBulkRank] = useState(false);
 
   const filtered = members.filter(m => {
@@ -133,6 +140,7 @@ export function MembersTab({
                   <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center font-black text-base transition-transform group-hover/rank:scale-105', RANK_COLORS[member.rank])}>
                     {member.rank}
                   </div>
+                  {profiles[member.id]?.avatar && <Avatar name={member.name} profile={profiles[member.id]} className="absolute -bottom-1.5 -right-1.5 w-7 h-7 ring-2 ring-white pointer-events-none" />}
                   <select
                     value={member.rank}
                     onChange={(e) => onUpdateRank(member.id, e.target.value as Rank)}
@@ -153,6 +161,7 @@ export function MembersTab({
                       onChange={(e) => onUpdateName(member.id, e.target.value)}
                     />
                   </div>
+                  {profiles[member.id]?.nickname && <p className="text-xs font-semibold text-on-surface/50 truncate">“{profiles[member.id]!.nickname}”</p>}
                   {RANK_LEVEL_LABELS[member.rank] && <p className="text-xs font-bold text-primary">{RANK_LEVEL_LABELS[member.rank]}</p>}
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-xs font-semibold text-on-surface/45">{member.gamesPlayed} เกม</span>
@@ -182,6 +191,10 @@ export function MembersTab({
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <button onClick={(e) => { e.stopPropagation(); setProfileId(member.id); }}
+                    className="flex items-center gap-1 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-full transition-colors">
+                    <UserRound size={12} /> โปรไฟล์
+                  </button>
                   {member.balance > 0 && (
                     <span className="text-xs font-black text-error">฿{member.balance.toFixed(0)}</span>
                   )}
@@ -285,6 +298,10 @@ export function MembersTab({
         <div className="text-center py-20 text-on-surface/30">
           <p className="font-bold">ไม่พบผู้เล่น</p>
         </div>
+      )}
+      {profileId && (
+        <PlayerProfileModal playerId={profileId} members={members} gameHistory={gameHistory} sessionHistory={sessionHistory}
+          profile={profiles[profileId]} onSaveProfile={onSaveProfile} onClose={() => setProfileId(null)} />
       )}
     </div>
   );

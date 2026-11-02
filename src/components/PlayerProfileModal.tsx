@@ -1,30 +1,48 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { X, Trophy, Flame, CalendarDays, Wallet, Users } from 'lucide-react';
+import { X, Trophy, Flame, CalendarDays, Wallet, Users, Pencil, Camera, Phone, MessageCircle, StickyNote, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { Member, GameRecord, SessionRecord, RANK_LEVEL_LABELS } from '../types';
+import { Member, GameRecord, SessionRecord, PlayerProfile, RANK_LEVEL_LABELS } from '../types';
+import { Avatar } from './Avatar';
+import { resizeToAvatar } from '../lib/image';
 
 interface Props {
   playerId: string;
   members: Member[];
   gameHistory: GameRecord[];
   sessionHistory: SessionRecord[];
+  profile?: PlayerProfile;
+  /** ไม่ส่งมา = ดูอย่างเดียว (ซ่อนปุ่มแก้ไข) */
+  onSaveProfile?: (id: string, profile: PlayerProfile) => void;
   onClose: () => void;
 }
 
-const initial = (name: string) => {
-  const t = Array.from(name.trim().replace(/^[เแโใไ]+/, ''));
-  if (t.length === 0) return '?';
-  return /[A-Za-z]/.test(t[0]) ? t.slice(0, 2).join('').toUpperCase() : t[0];
-};
-
 // โปรไฟล์ผู้เล่น — รวมสถิติทุกวันที่เคยตี (วันนี้ + ประวัติย้อนหลัง) ของคนเดียว
-export function PlayerProfileModal({ playerId, members, gameHistory, sessionHistory, onClose }: Props) {
+export function PlayerProfileModal({ playerId, members, gameHistory, sessionHistory, profile, onSaveProfile, onClose }: Props) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<PlayerProfile>(profile || {});
+  const [imgError, setImgError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const startEdit = () => { setDraft(profile || {}); setImgError(''); setEditing(true); };
+  const save = () => {
+    const clean: PlayerProfile = {};
+    (['nickname', 'phone', 'lineId', 'note'] as const).forEach(k => { const v = (draft[k] || '').trim(); if (v) clean[k] = v; });
+    if (draft.avatar) clean.avatar = draft.avatar;
+    onSaveProfile?.(playerId, clean);
+    setEditing(false);
+  };
+  const pickImage = async (f?: File) => {
+    if (!f) return;
+    setImgError('');
+    try { const url = await resizeToAvatar(f); setDraft(d => ({ ...d, avatar: url })); }
+    catch { setImgError('ใช้ไฟล์รูปภาพเท่านั้น'); }
+  };
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (editing) setEditing(false); else onClose(); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, editing]);
 
   const p = useMemo(() => {
     const sources: { games: GameRecord[]; members: Member[]; played: boolean }[] = [
@@ -93,19 +111,59 @@ export function PlayerProfileModal({ playerId, members, gameHistory, sessionHist
         <div className="relative p-5 sm:p-6 bg-primary text-on-primary rounded-t-[2rem]">
           <button onClick={onClose} className="absolute right-4 top-4 w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" aria-label="ปิด"><X size={18} /></button>
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center font-headline font-black text-2xl shrink-0">{initial(p.name)}</div>
-            <div className="min-w-0">
+            <div className="relative shrink-0">
+              <Avatar name={p.name || '?'} profile={editing ? draft : profile} className="w-20 h-20 ring-4 ring-white/30" textClass="text-3xl !bg-white/20 !text-white" />
+              {editing && (
+                <button onClick={() => fileRef.current?.click()} className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white text-primary shadow flex items-center justify-center" aria-label="เปลี่ยนรูป"><Camera size={16} /></button>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { pickImage(e.target.files?.[0]); e.target.value = ''; }} />
+            </div>
+            <div className="min-w-0 pr-10">
               <h3 className="font-headline font-black text-2xl truncate">{p.name || 'ไม่พบผู้เล่น'}</h3>
+              {!editing && profile?.nickname && <p className="text-sm font-bold opacity-90">“{profile.nickname}”</p>}
               {p.rank && (
                 <p className="text-sm font-bold opacity-85">
                   ระดับ {p.rank}{RANK_LEVEL_LABELS[p.rank] ? ` · ${RANK_LEVEL_LABELS[p.rank]}` : ''}
                 </p>
+              )}
+              {onSaveProfile && !editing && (
+                <button onClick={startEdit} className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-xs font-black"><Pencil size={13} /> แก้ไขโปรไฟล์</button>
               )}
             </div>
           </div>
         </div>
 
         <div className="p-5 sm:p-6 space-y-5">
+          {editing ? (
+            <div className="space-y-3 rounded-2xl bg-background p-4">
+              <p className="text-sm font-black">แก้ไขโปรไฟล์</p>
+              {imgError && <p className="text-xs font-bold text-red-500">{imgError}</p>}
+              {draft.avatar && <button onClick={() => setDraft(d => { const { avatar, ...rest } = d; return rest; })} className="flex items-center gap-1.5 text-xs font-bold text-red-500"><Trash2 size={13} /> ลบรูปโปรไฟล์</button>}
+              {([['nickname', 'ชื่อเล่น', 'เช่น เบส', 30], ['phone', 'เบอร์โทร', '08x-xxx-xxxx', 30], ['lineId', 'LINE ID', 'เช่น bass_badminton', 40]] as const).map(([k, label, ph, max]) => (
+                <label key={k} className="block space-y-1">
+                  <span className="text-xs font-bold text-on-surface/50">{label}</span>
+                  <input value={draft[k] || ''} maxLength={max} placeholder={ph} onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-on-surface/10 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary/25" />
+                </label>
+              ))}
+              <label className="block space-y-1">
+                <span className="text-xs font-bold text-on-surface/50">หมายเหตุ</span>
+                <textarea value={draft.note || ''} maxLength={300} rows={3} placeholder="เช่น ถนัดซ้าย / ชอบตีคู่ / แพ้ลูกตบ"
+                  onChange={e => setDraft(d => ({ ...d, note: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl bg-white border border-on-surface/10 font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-primary/25 resize-none" />
+              </label>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setEditing(false)} className="flex-1 py-2.5 rounded-xl bg-white font-black text-sm text-on-surface/60">ยกเลิก</button>
+                <button onClick={save} className="flex-[2] py-2.5 rounded-xl bg-primary text-white font-black text-sm">บันทึกโปรไฟล์</button>
+              </div>
+            </div>
+          ) : (profile?.phone || profile?.lineId || profile?.note) && (
+            <div className="space-y-2 rounded-2xl bg-background p-4 text-sm">
+              {profile?.phone && <a href={`tel:${profile.phone}`} className="flex items-center gap-2.5 font-bold hover:text-primary"><Phone size={15} className="text-on-surface/40" /> {profile.phone}</a>}
+              {profile?.lineId && <p className="flex items-center gap-2.5 font-bold"><MessageCircle size={15} className="text-on-surface/40" /> LINE: {profile.lineId}</p>}
+              {profile?.note && <p className="flex items-start gap-2.5 font-semibold text-on-surface/70"><StickyNote size={15} className="text-on-surface/40 mt-0.5 shrink-0" /> <span className="whitespace-pre-line">{profile.note}</span></p>}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2.5">
             <div className={stat}><p className="font-headline font-black text-2xl">{p.games}</p><p className="text-[11px] font-bold text-on-surface/50">เกมที่ตี</p></div>
             <div className={stat}><p className="font-headline font-black text-2xl">{p.days}</p><p className="text-[11px] font-bold text-on-surface/50 flex items-center justify-center gap-1"><CalendarDays size={11} /> วันที่มาตี</p></div>

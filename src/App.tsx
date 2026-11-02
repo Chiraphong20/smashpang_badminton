@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Users, LayoutDashboard, Trophy, Banknote, UserPlus, Search, ShoppingCart, History, FileText, ChevronLeft, ChevronRight, Menu, Settings, BarChart3, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import { Member, Court, Rank, RANKS, RANK_COLORS, Snack, PaymentRecord, GameRecord, SessionRecord, CourtQueueSlot, QueuePlayer, SessionMode, ModeConfig, DEFAULT_MODE_CONFIG } from './types';
+import { Member, Court, Rank, RANKS, RANK_COLORS, Snack, PaymentRecord, GameRecord, SessionRecord, CourtQueueSlot, QueuePlayer, SessionMode, ModeConfig, DEFAULT_MODE_CONFIG, PlayerProfile } from './types';
 import { format } from 'date-fns';
 import confetti from 'canvas-confetti';
 
@@ -143,6 +143,13 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
   const [sessionHistory, setSessionHistory] = useState<SessionRecord[]>([]);
   const [viewingSession, setViewingSession] = useState<SessionRecord | null>(null);
   const [rankMemory, setRankMemory] = useState<Record<string, Rank>>({});
+  // โปรไฟล์ผู้เล่น (รูป/ชื่อเล่น/เบอร์/LINE/หมายเหตุ) คีย์ด้วย member.id — เก็บในข้อมูลก๊วนเดียวกับ state อื่น
+  const [playerProfiles, setPlayerProfiles] = useState<Record<string, PlayerProfile>>({});
+  const saveProfile = (id: string, profile: PlayerProfile) => setPlayerProfiles(prev => {
+    const next = { ...prev };
+    if (Object.keys(profile).length === 0) delete next[id]; else next[id] = profile;
+    return next;
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('sp_sidebar_collapsed') === '1'; } catch { return false; }
   });
@@ -230,6 +237,7 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
 
         setMembers(activeMembers);
         setRankMemory(combinedRankMemory);
+        if (loadedState?.playerProfiles) setPlayerProfiles(loadedState.playerProfiles);
 
       } catch (err) {
         console.error('Failed to load initial data from DB:', err);
@@ -246,9 +254,9 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
   useEffect(() => {
     autoSaveStateRef.current = {
       members, courts, gameHistory, paymentHistory, sessionHistory,
-      rankMemory, courtFeePerPerson, shuttlePrice, snacks, sessionStartDate, courtQueues, sessionMode, modeConfig
+      rankMemory, courtFeePerPerson, shuttlePrice, snacks, sessionStartDate, courtQueues, sessionMode, modeConfig, playerProfiles
     };
-  }, [members, courts, gameHistory, paymentHistory, sessionHistory, rankMemory, courtFeePerPerson, shuttlePrice, snacks, sessionStartDate, courtQueues, sessionMode, modeConfig]);
+  }, [members, courts, gameHistory, paymentHistory, sessionHistory, rankMemory, courtFeePerPerson, shuttlePrice, snacks, sessionStartDate, courtQueues, sessionMode, modeConfig, playerProfiles]);
 
   // เวอร์ชันล่าสุดของข้อมูลที่เครื่องนี้รู้จัก (จาก DB) — ใช้กันเครื่อง/แท็บเก่า
   // save ทับข้อมูลใหม่แบบเงียบๆ (root cause ของเคสข้อมูลวันที่ 15/08 หาย)
@@ -339,11 +347,12 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
         sessionStartDate,
         courtQueues,
         sessionMode,
-        modeConfig
+        modeConfig,
+        playerProfiles
       });
     }, 2000);
     return () => clearTimeout(handler);
-  }, [members, courts, gameHistory, paymentHistory, sessionHistory, courtFeePerPerson, shuttlePrice, rankMemory, snacks, sessionStartDate, courtQueues, sessionMode, modeConfig]);
+  }, [members, courts, gameHistory, paymentHistory, sessionHistory, courtFeePerPerson, shuttlePrice, rankMemory, snacks, sessionStartDate, courtQueues, sessionMode, modeConfig, playerProfiles]);
 
   // Debounced save MASTER DATA (Permanent members & Settings) to MySQL
   useEffect(() => {
@@ -1650,11 +1659,17 @@ function GroupApp({ groupName, schedule, needsName, onRename }: { groupName: str
                     modeConfig={modeConfig}
                     onApplySplit={applySplit}
                     onChangeConfig={patch => setModeConfig(prev => ({ ...prev, ...patch }))}
+                    profiles={playerProfiles}
+                    onSaveProfile={saveProfile}
                   />
                 )}
                 {activeTab === 'members' && (
                   <MembersTab
                     members={members}
+                    gameHistory={gameHistory}
+                    sessionHistory={sessionHistory}
+                    profiles={playerProfiles}
+                    onSaveProfile={saveProfile}
                     searchQuery={searchQuery}
                     onSearch={setSearchQuery}
                     onRemove={removeMember}

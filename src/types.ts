@@ -182,3 +182,12 @@ export const RANK_WEIGHTS: Record<Rank, number> = {
   'VIP3': 3, 'VIP2': 2, 'VIP1': 1,
 };
 
+
+// โปรไฟล์ผู้เล่น (เพิ่มเอง) — เก็บแยกจากรายชื่อสมาชิก คีย์ด้วย member.id
+export interface PlayerProfile {
+  nickname?: string;
+  phone?: string;
+  lineId?: string;
+  note?: string;
+  avatar?: string; // data URL (jpeg ย่อเป็นสี่เหลี่ยมจัตุรัสเล็ก ๆ)
+}
