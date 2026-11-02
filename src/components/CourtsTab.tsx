@@ -77,7 +77,11 @@ interface Props {
 }
 
 // ── Player Picker ─────────────────────────────────────────────────────────────
-function PlayerPicker({ members, currentPlayerId, onSelect, onClose, position, profiles = {} }: {
+export function PlayerPicker({ members, currentPlayerId, onSelect, onClose, position, profiles = {}, pickAll = false, sheet = false }: {
+  /** แก้เกมย้อนหลัง: เลือกได้ทุกคน ไม่จำกัดเฉพาะคนที่รอคิว */
+  pickAll?: boolean;
+  /** แสดงเป็นแผงเลื่อนจากด้านล่างทุกขนาดจอ (ใช้ในหน้าต่างที่มี overflow) */
+  sheet?: boolean;
   profiles?: Record<string, PlayerProfile>;
   members: Member[];
   currentPlayerId: string | null;
@@ -92,7 +96,7 @@ function PlayerPicker({ members, currentPlayerId, onSelect, onClose, position, p
   useEffect(() => { ref.current?.focus(); }, []);
 
   const list = members.filter(m =>
-    (m.status === 'waiting' || m.id === currentPlayerId) &&
+    (pickAll || m.status === 'waiting' || m.id === currentPlayerId) &&
     m.name.toLowerCase().includes(q.toLowerCase())
   );
 
@@ -118,8 +122,10 @@ function PlayerPicker({ members, currentPlayerId, onSelect, onClose, position, p
       onClick={e => e.stopPropagation()}
       className={cn(
         "absolute left-0 right-0 z-50 bg-white rounded-2xl shadow-2xl border border-on-surface/5 overflow-hidden",
-        "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:mt-0 max-sm:mb-0 max-sm:z-[300] max-sm:rounded-b-none max-sm:shadow-[0_-12px_40px_rgba(0,0,0,0.25)]",
-        position === 'top' ? "top-full mt-2" : "bottom-full mb-2"
+        sheet
+          ? "fixed inset-x-0 bottom-0 top-auto z-[400] rounded-b-none sm:max-w-xl sm:mx-auto shadow-[0_-12px_40px_rgba(0,0,0,0.25)]"
+          : "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:mt-0 max-sm:mb-0 max-sm:z-[300] max-sm:rounded-b-none max-sm:shadow-[0_-12px_40px_rgba(0,0,0,0.25)]",
+        !sheet && (position === 'top' ? "top-full mt-2" : "bottom-full mb-2")
       )}
     >
       <div className="p-3 border-b border-on-surface/5">
@@ -171,8 +177,10 @@ function PlayerPicker({ members, currentPlayerId, onSelect, onClose, position, p
 }
 
 // ── Slot Card ────────────────────────────────────────────────────────────────
-function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locked, openRequest, profiles = {} }: {
+export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locked, openRequest, profiles = {}, pickAll = false, sheet = false }: {
   key?: number;
+  pickAll?: boolean;
+  sheet?: boolean;
   profiles?: Record<string, PlayerProfile>;
   slotIndex: number;
   courtId: string;
@@ -286,6 +294,8 @@ function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locke
         {open && !locked && (
           <PlayerPicker
             profiles={profiles}
+            pickAll={pickAll}
+            sheet={sheet}
             members={members}
             currentPlayerId={playerId}
             onSelect={onSelect}

@@ -1674,6 +1674,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     onActiveTab={setActiveTab}
                     onUpdateGame={updateGame}
                     onPullSession={pullSessionData}
+                    profiles={playerProfiles}
                   />
                 )}
                 {activeTab === 'stats' && (

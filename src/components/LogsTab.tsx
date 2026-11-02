@@ -1,5 +1,6 @@
 import React from 'react';
-import { GameRecord, Member, PaymentRecord, RANK_COLORS, SessionRecord } from '../types';
+import { GameRecord, Member, PaymentRecord, RANK_COLORS, SessionRecord, PlayerProfile } from '../types';
+import { SlotCard } from './CourtsTab';
 import { History, LayoutDashboard, Trophy, Clock, X, Check, Banknote, ShoppingCart, ChevronDown, ChevronUp, Calendar, Search, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
@@ -18,92 +19,106 @@ interface Props {
   onActiveTab: (tab: 'dashboard' | 'logs' | 'members' | 'courts' | 'settings') => void;
   onUpdateGame: (id: string, players: string[], shuttles: number) => void;
   onPullSession: (date: string) => Promise<SessionRecord | undefined>;
+  profiles?: Record<string, PlayerProfile>;
 }
 
 interface SessionDate { id: string; date: number; }
 interface MemberHistoryRecord { sessionId: string; date: number; gamesPlayed: number; cost: number; paid: number; }
 
-function EditGameModal({ game, members, onSave, onClose }: { game: GameRecord, members: Member[], onSave: (pids: string[], shuttles: number) => void, onClose: () => void }) {
-  const [pids, setPids] = React.useState<string[]>(game.players.map(p => p.id));
+function EditGameModal({ game, members, profiles = {}, onSave, onClose }: { game: GameRecord, members: Member[], profiles?: Record<string, PlayerProfile>, onSave: (pids: string[], shuttles: number) => void, onClose: () => void }) {
+  // 4 ช่องแบบเดียวกับหน้าจัดการคอร์ด: ช่อง 1-2 = ทีม A, ช่อง 3-4 = ทีม B
+  const [slots, setSlots] = React.useState<(string | null)[]>(() => [0, 1, 2, 3].map(i => game.players[i]?.id ?? null));
   const [shuttles, setShuttles] = React.useState(game.shuttlesUsed);
-  const [search, setSearch] = React.useState('');
+  // ค่าลูกต่อคนต่อลูก คำนวณจากเกมเดิม (ราคาไม่ได้เก็บแยก)
+  const perShuttle = game.shuttlesUsed > 0 ? game.shuttleCostPerPerson / game.shuttlesUsed : 0;
+  const filled = slots.filter(Boolean).length;
 
-  const filtered = members.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
+  useModalHotkeys({ onClose, onSubmit: () => { if (filled === 4) onSave(slots as string[], shuttles); } });
 
-  useModalHotkeys({ onClose, onSubmit: () => { if (pids.length === 4) onSave(pids, shuttles); } });
+  // เลือกคนที่อยู่ในอีกช่องอยู่แล้ว = สลับตำแหน่งกัน (ไม่ให้ซ้ำ)
+  const setSlot = (idx: number, id: string | null) => setSlots(prev => {
+    const next = [...prev];
+    const from = id ? next.indexOf(id) : -1;
+    if (from >= 0 && from !== idx) next[from] = next[idx];
+    next[idx] = id;
+    return next;
+  });
+
+  const team = (label: 'A' | 'B', idxs: number[]) => {
+    const isA = label === 'A';
+    return (
+      <div className={cn('rounded-2xl p-3 space-y-3 border', isA ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100')}>
+        <div className="flex items-center justify-between">
+          <h3 className={cn('flex items-center gap-2 font-headline font-black text-lg', isA ? 'text-blue-700' : 'text-orange-600')}>
+            <span className={cn('w-8 h-8 rounded-full text-white flex items-center justify-center text-sm', isA ? 'bg-blue-600' : 'bg-orange-500')}>{label}</span> Team {label}
+          </h3>
+          <span className={cn('text-sm font-black', isA ? 'text-blue-700' : 'text-orange-600')}>{idxs.filter(i => slots[i]).length}/2 คน</span>
+        </div>
+        <div className="grid grid-cols-1 gap-2.5">
+          {idxs.map(i => (
+            <SlotCard key={i} slotIndex={i} courtId="edit" playerId={slots[i]} team={label} members={members} profiles={profiles}
+              onSelect={id => setSlot(i, id)} locked={false} pickAll sheet />
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-3 sm:p-4">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-on-surface/60 backdrop-blur-sm" />
-      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 shadow-2xl relative z-10 flex flex-col max-h-[85vh]">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-headline font-black text-2xl">แก้ไขข้อมูลเกม</h2>
+      <div className="bg-white rounded-[2rem] w-full max-w-xl p-5 sm:p-7 shadow-2xl relative z-10 flex flex-col max-h-[92vh]">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-headline font-black text-2xl">แก้ไขข้อมูลเกม</h2>
+            <p className="text-xs font-semibold text-on-surface/45">{game.courtName} · {format(game.playedAt, 'HH:mm')} น.</p>
+          </div>
           <button onClick={onClose} className="p-2 hover:bg-background rounded-full transition-colors"><X size={20} /></button>
         </div>
 
-        <div className="space-y-6 overflow-y-auto pr-2 custom-scrollbar">
-          <div>
-            <label className="text-xs font-bold text-on-surface/45 mb-2 block">จำนวนลูกแบด</label>
-            <div className="flex items-center gap-4">
-              <button onClick={() => setShuttles(Math.max(1, shuttles - 1))} className="w-10 h-10 rounded-xl bg-on-surface/5 flex items-center justify-center font-black">-</button>
-              <span className="text-xl font-black w-12 text-center">{shuttles}</span>
-              <button onClick={() => setShuttles(shuttles + 1)} className="w-10 h-10 rounded-xl bg-on-surface/5 flex items-center justify-center font-black">+</button>
-            </div>
+        <div className="space-y-4 overflow-y-auto pr-1 pt-2 custom-scrollbar">
+          {team('A', [0, 1])}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-px bg-on-surface/10" />
+            <span className="px-3.5 py-1 rounded-full border-2 border-slate-300 bg-white font-headline font-black text-sm text-slate-700">VS</span>
+            <div className="flex-1 h-px bg-on-surface/10" />
           </div>
+          {team('B', [2, 3])}
 
-          <div>
-            <label className="text-xs font-bold text-on-surface/45 mb-2 block">ผู้เล่น (4 คน)</label>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {pids.map((id, idx) => {
-                const m = members.find(mx => mx.id === id);
-                return (
-                  <div key={idx} className="bg-primary/10 text-primary px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-2">
-                    {m?.name || 'Unknown'}
-                    <button onClick={() => setPids(prev => prev.filter(pix => pix !== id))}><X size={12} /></button>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="space-y-4">
-              <input
-                type="text" placeholder="ค้นหาชื่อผู้เล่น..." value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full px-4 py-3 bg-background rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold text-sm"
-              />
-              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                {filtered.map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      if (pids.includes(m.id)) setPids(pids.filter(id => id !== m.id));
-                      else if (pids.length < 4) setPids([...pids, m.id]);
-                    }}
-                    className={cn("flex items-center gap-3 p-3 rounded-2xl transition-all text-left", pids.includes(m.id) ? "bg-primary text-white" : "bg-on-surface/5 hover:bg-on-surface/10")}
-                  >
-                    <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold", pids.includes(m.id) ? "bg-white/20" : RANK_COLORS[m.rank])}>{m.rank}</div>
-                    <span className="text-xs font-bold truncate">{m.name}</span>
-                  </button>
-                ))}
+          <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-on-surface/5">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-bold text-on-surface/55 leading-tight">จำนวน<br />ลูกแบด</span>
+              <div className="flex items-center rounded-xl bg-slate-100 border border-slate-200 overflow-hidden">
+                <button onClick={() => setShuttles(Math.max(1, shuttles - 1))} disabled={shuttles <= 1}
+                  className="w-11 h-11 font-black text-xl hover:bg-slate-200 transition-colors disabled:opacity-30">−</button>
+                <span className="w-10 text-center font-headline font-black text-xl bg-white h-11 flex items-center justify-center">{shuttles}</span>
+                <button onClick={() => setShuttles(shuttles + 1)} className="w-11 h-11 font-black text-xl hover:bg-slate-200 transition-colors">+</button>
               </div>
             </div>
+            {perShuttle > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                <span className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-sm">฿</span>
+                <span className="font-headline font-black text-lg text-emerald-800">฿{(shuttles * perShuttle).toFixed(0)} <span className="text-sm font-bold">/ คน</span></span>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-on-surface/5">
+        <div className="mt-5 pt-4 border-t border-on-surface/5">
           <button
-            disabled={pids.length !== 4}
-            onClick={() => onSave(pids, shuttles)}
+            disabled={filled !== 4}
+            onClick={() => onSave(slots as string[], shuttles)}
             className="w-full bg-primary text-white font-black py-4 rounded-3xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center gap-2"
           >
-            <Check size={20} strokeWidth={3} /> บันทึกการแก้ไข
+            <Check size={20} strokeWidth={3} /> {filled === 4 ? 'บันทึกการแก้ไข' : `เลือกผู้เล่นให้ครบ 4 คน (${filled}/4)`}
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
 
-export function LogsTab({ gameHistory, sessionHistory, members, paymentHistory, onViewSession, onActiveTab, onUpdateGame, onPullSession }: Props) {
+export function LogsTab({ gameHistory, sessionHistory, members, paymentHistory, onViewSession, onActiveTab, onUpdateGame, onPullSession, profiles = {} }: Props) {
   const [editingGame, setEditingGame] = React.useState<GameRecord | null>(null);
   const [expandedPayment, setExpandedPayment] = React.useState<string | null>(null);
   const [showSessionDropdown, setShowSessionDropdown] = React.useState(false);
@@ -231,6 +246,7 @@ export function LogsTab({ gameHistory, sessionHistory, members, paymentHistory, 
           <EditGameModal
             game={editingGame}
             members={members}
+            profiles={profiles}
             onClose={() => setEditingGame(null)}
             onSave={(pids, shuttles) => {
               onUpdateGame(editingGame.id, pids, shuttles);
