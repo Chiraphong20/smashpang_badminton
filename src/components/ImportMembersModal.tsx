@@ -3,6 +3,7 @@ import { X, FileText, UserPlus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS } from '../types';
+import { parseLineNames } from '../lib/lineNames';
 
 interface ParsedMember {
   id: string;
@@ -19,52 +20,8 @@ interface Props {
   isSessionMode?: boolean;
 }
 
-// Parse LINE signup text → names & optional ranks
-function parseLine(text: string): { name: string; rank?: Rank }[] {
-  const lines = text.split('\n');
-  const results: { name: string; rank?: Rank }[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    // Match "1 ชื่อ", "1. ชื่อ", "1ชื่อ", "- ชื่อ" patterns
-    const match = trimmed.match(/^(\d+[\.\):\s-]*)\s*(.+)$/) || trimmed.match(/^([-•*]\s+)(.+)$/);
-    
-    // If no numbered match, try matching directly as name if it doesn't look like a header
-    let content = match ? match[2].trim() : trimmed;
-    
-    // Skip headers like "รายชื่อตีวันนี้" or "สนามแบด"
-    if (!match && (content.includes(':') || content.length > 50)) continue;
-
-    // Look for rank in parentheses or brackets like (S1), [P], (VIP)
-    let detectedRank: Rank | undefined;
-    const rankMatch = content.match(/\((VIP\d?|BG\d?|S-?\d?|P[+-]?)\)/i) || 
-                      content.match(/\[(VIP\d?|BG\d?|S-?\d?|P[+-]??)\]/i) ||
-                      content.match(/\s+(VIP\d?|BG\d?|S-?\d?|P[+-]?)$/i);
-    
-    if (rankMatch) {
-      detectedRank = rankMatch[1].toUpperCase().trim() as Rank;
-      // Clean rank from name
-      content = content.replace(rankMatch[0], '').trim();
-    }
-
-    // Remove trailing time patterns like 17:30, 18.00, 19.30, 19:00, (19:00), 17.30น.
-    content = content.replace(/\s*\(?\d{1,2}[:\.](?:\d{2}|00)\s*(น\.|น|นับ)?\)?.*$/g, '');
-    
-    // Remove parenthesized notes at the end (if not already handled by rank)
-    content = content.replace(/\s*\(.*?\).*$/, '');
-
-    // Remove common Thai suffixes/particles
-    content = content.replace(/\s*(ค่ะ|ครับ|คะ่|นะ|เจ้า).*$/g, '');
-    
-    const finalName = content.trim();
-    if (finalName && isNaN(Number(finalName))) {
-      results.push({ name: finalName, rank: detectedRank });
-    }
-  }
-  return results;
-}
+// Parse LINE signup text → ชื่อ (และระดับมือถ้าพิมพ์มา) · ดู src/lib/lineNames.ts
+const parseLine = parseLineNames;
 
 // Parse Master List text → {name, rank}
 function parseMasterList(text: string): { name: string; rank: Rank }[] {
@@ -103,7 +60,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
   const handleParse = () => {
     if (mode === 'line') {
       const results = parseLine(text);
-      if (results.length === 0) { alert('ไม่พบรายชื่อ — ลองวางข้อความในรูปแบบ "1 ชื่อ" หรือ "- ชื่อ"'); return; }
+      if (results.length === 0) { alert('ไม่พบรายชื่อ — วางข้อความลงชื่อที่ขึ้นต้นด้วยเลขข้อ เช่น "1. ชื่อ"'); return; }
       setParsed(results.map((res, i) => ({
         id: `import-${i}`,
         name: res.name,

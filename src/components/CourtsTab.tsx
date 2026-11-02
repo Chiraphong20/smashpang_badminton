@@ -308,141 +308,37 @@ export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect
   );
 }
 
-// ── Player Search Picker (for Queue Slot Editor) ─────────────────────────────
-function PlayerSearchPicker({ members, selected, onSelect, placeholder, excludeIds = [] }: {
-  members: Member[];
-  selected: QueuePlayer | null;
-  onSelect: (m: Member | null) => void;
-  placeholder?: string;
-  excludeIds?: string[];
-}) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const filtered = members
-    .filter(m => !excludeIds.includes(m.id))
-    .filter(m => !q || m.name.toLowerCase().includes(q.toLowerCase()))
-    .sort((a, b) => {
-      if (a.status === 'waiting' && b.status !== 'waiting') return -1;
-      if (b.status === 'waiting' && a.status !== 'waiting') return 1;
-      return a.name.localeCompare(b.name, 'th');
-    })
-    .slice(0, 20);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className={cn(
-          'w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all text-left',
-          selected
-            ? 'bg-primary/5 border-primary/20 text-on-surface'
-            : 'bg-background border-on-surface/5 text-on-surface/35 hover:border-primary/20'
-        )}
-      >
-        {selected ? (
-          <>
-            <span className={cn('w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0', RANK_COLORS[selected.rank])}>
-              {selected.rank}
-            </span>
-            <span className="flex-1 truncate">{selected.name}</span>
-            <button
-              type="button"
-              onClick={e => { e.stopPropagation(); onSelect(null); }}
-              className="p-0.5 text-on-surface/20 hover:text-error transition-colors"
-            >
-              <X size={13} />
-            </button>
-          </>
-        ) : (
-          <span className="text-on-surface/35">{placeholder || '+ เลือกผู้เล่น'}</span>
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white rounded-2xl shadow-2xl border border-on-surface/5 overflow-hidden">
-          <div className="p-2 border-b border-on-surface/5">
-            <input
-              autoFocus
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); return; }
-                if (e.key !== 'Enter') return;
-                e.stopPropagation();
-                if (filtered.length === 1) { onSelect(filtered[0]); setOpen(false); setQ(''); }
-              }}
-              placeholder="ค้นหาชื่อ..."
-              className="w-full px-3 py-1.5 bg-background rounded-xl text-sm font-semibold focus:outline-none"
-            />
-          </div>
-          <div className="max-h-44 overflow-y-auto">
-            {filtered.map(m => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => { onSelect(m); setOpen(false); setQ(''); }}
-                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-primary/5 text-left transition-colors"
-              >
-                <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0', RANK_COLORS[m.rank])}>
-                  {m.rank}
-                </span>
-                <span className="text-sm font-semibold flex-1 truncate">{m.name}</span>
-                <span className={cn('text-xs font-bold px-2 py-0.5 rounded-full',
-                  m.status === 'waiting' ? 'bg-secondary/10 text-secondary' :
-                  m.status === 'playing' ? 'bg-green-100 text-green-700' :
-                  'bg-on-surface/5 text-on-surface/30'
-                )}>
-                  {m.status === 'waiting' ? 'รอ' : m.status === 'playing' ? 'ตีอยู่' : 'พัก'}
-                </span>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <p className="text-center py-4 text-xs text-on-surface/30 font-semibold">ไม่พบสมาชิก</p>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Queue Slot Editor Modal ───────────────────────────────────────────────────
-function QueueSlotEditor({ members, slot, onSave, onClose }: {
+function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {} }: {
+  profiles?: Record<string, PlayerProfile>;
   members: Member[];
   slot?: Partial<CourtQueueSlot>;
   onSave: (slot: CourtQueueSlot) => void;
   onClose: () => void;
 }) {
-  const [teamA, setTeamA] = useState<(QueuePlayer | null)[]>([
-    slot?.teamA?.[0] ?? null,
-    slot?.teamA?.[1] ?? null,
-  ]);
-  const [teamB, setTeamB] = useState<(QueuePlayer | null)[]>([
-    slot?.teamB?.[0] ?? null,
-    slot?.teamB?.[1] ?? null,
+  // 4 ช่องแบบเดียวกับหน้าจัดคอร์ด: ช่อง 1-2 = ทีม A, ช่อง 3-4 = ทีม B
+  const [slots, setSlots] = useState<(string | null)[]>([
+    slot?.teamA?.[0]?.memberId ?? null, slot?.teamA?.[1]?.memberId ?? null,
+    slot?.teamB?.[0]?.memberId ?? null, slot?.teamB?.[1]?.memberId ?? null,
   ]);
   const [note, setNote] = useState(slot?.note ?? '');
 
-  const pick = (team: 'A' | 'B', idx: number, m: Member | null) => {
-    const p = m ? { memberId: m.id, name: m.name, rank: m.rank } : null;
-    if (team === 'A') setTeamA(prev => prev.map((v, i) => i === idx ? p : v));
-    else setTeamB(prev => prev.map((v, i) => i === idx ? p : v));
+  // เลือกคนที่อยู่อีกช่องแล้ว = สลับตำแหน่งกัน (ไม่ให้ซ้ำ)
+  const setSlotAt = (idx: number, id: string | null) => setSlots(prev => {
+    const next = [...prev];
+    const from = id ? next.indexOf(id) : -1;
+    if (from >= 0 && from !== idx) next[from] = next[idx];
+    next[idx] = id;
+    return next;
+  });
+  const toPlayer = (id: string | null): QueuePlayer | null => {
+    const m = id ? members.find(x => x.id === id) : null;
+    return m ? { memberId: m.id, name: m.name, rank: m.rank } : null;
   };
 
   const handleSave = () => {
-    const ta = teamA.filter(Boolean) as QueuePlayer[];
-    const tb = teamB.filter(Boolean) as QueuePlayer[];
+    const ta = [slots[0], slots[1]].map(toPlayer).filter(Boolean) as QueuePlayer[];
+    const tb = [slots[2], slots[3]].map(toPlayer).filter(Boolean) as QueuePlayer[];
     if (ta.length === 0 && tb.length === 0) { alert('กรุณาเลือกผู้เล่นอย่างน้อย 1 คน'); return; }
     onSave({
       id: slot?.id ?? Math.random().toString(36).substr(2, 9),
@@ -457,7 +353,7 @@ function QueueSlotEditor({ members, slot, onSave, onClose }: {
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-on-surface/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-[2rem] p-6 w-full max-w-sm shadow-2xl z-10">
+      <div className="relative bg-white rounded-[2rem] p-5 sm:p-6 w-full max-w-md shadow-2xl z-10">
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-headline font-black text-xl">{slot?.id ? 'แก้ไขคิว' : 'เพิ่มคิวใหม่'}</h3>
           <button onClick={onClose} className="p-2 hover:bg-background rounded-full transition-colors">
@@ -465,27 +361,29 @@ function QueueSlotEditor({ members, slot, onSave, onClose }: {
           </button>
         </div>
 
-        {(() => {
-          const allIds = [teamA[0]?.memberId, teamA[1]?.memberId, teamB[0]?.memberId, teamB[1]?.memberId].filter(Boolean) as string[];
-          const excl = (own: string | undefined) => allIds.filter(id => id !== own);
-          return (
-            <div className="space-y-4 mb-5">
-              <div className="space-y-2">
-                <p className="text-xs font-bold text-primary/60">ทีม A</p>
-                <PlayerSearchPicker members={members} selected={teamA[0]} onSelect={m => pick('A', 0, m)} placeholder="ผู้เล่น A1" excludeIds={excl(teamA[0]?.memberId)} />
-                <PlayerSearchPicker members={members} selected={teamA[1]} onSelect={m => pick('A', 1, m)} placeholder="ผู้เล่น A2" excludeIds={excl(teamA[1]?.memberId)} />
-              </div>
-
-              <div className="text-center text-on-surface/20 font-black">VS</div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-bold text-secondary/60">ทีม B</p>
-                <PlayerSearchPicker members={members} selected={teamB[0]} onSelect={m => pick('B', 0, m)} placeholder="ผู้เล่น B1" excludeIds={excl(teamB[0]?.memberId)} />
-                <PlayerSearchPicker members={members} selected={teamB[1]} onSelect={m => pick('B', 1, m)} placeholder="ผู้เล่น B2" excludeIds={excl(teamB[1]?.memberId)} />
-              </div>
-            </div>
-          );
-        })()}
+        <div className="space-y-3 mb-5 max-h-[60vh] overflow-y-auto pr-1 pt-2">
+          {(['A', 'B'] as const).map(t => {
+            const idxs = t === 'A' ? [0, 1] : [2, 3];
+            const isA = t === 'A';
+            return (
+              <React.Fragment key={t}>
+                {!isA && <div className="text-center text-on-surface/30 font-black text-sm">VS</div>}
+                <div className={cn('rounded-2xl p-3 space-y-2.5 border', isA ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100')}>
+                  <div className="flex items-center justify-between">
+                    <h4 className={cn('flex items-center gap-2 font-headline font-black', isA ? 'text-blue-700' : 'text-orange-600')}>
+                      <span className={cn('w-7 h-7 rounded-full text-white flex items-center justify-center text-xs', isA ? 'bg-blue-600' : 'bg-orange-500')}>{t}</span> Team {t}
+                    </h4>
+                    <span className={cn('text-xs font-black', isA ? 'text-blue-700' : 'text-orange-600')}>{idxs.filter(i => slots[i]).length}/2 คน</span>
+                  </div>
+                  {idxs.map(i => (
+                    <SlotCard key={i} slotIndex={i} courtId="queue" playerId={slots[i]} team={t} members={members} profiles={profiles}
+                      onSelect={id => setSlotAt(i, id)} locked={false} pickAll sheet />
+                  ))}
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
 
         <input
           value={note}
@@ -873,6 +771,7 @@ export function CourtsTab({
       {editingSlot && (
         <QueueSlotEditor
           members={members}
+          profiles={profiles}
           slot={editingSlot.slot}
           onClose={() => setEditingSlot(null)}
           onSave={slot => {
