@@ -41,6 +41,8 @@ interface Props {
   plan?: PlanInfo | null;
   /** ผู้ช่วย: ซ่อนส่วนที่เป็นของเจ้าของก๊วน (แพ็กเกจ พร้อมเพย์ ประกาศ ล้างข้อมูล) */
   isHelper?: boolean;
+  groupName?: string;
+  onRename?: (name: string, slot: null) => Promise<boolean>;
   onImportSignups?: (names: string[]) => void;
   promptPay?: { id: string; name: string };
   onChangePromptPay?: (v: { id: string; name: string }) => void;
@@ -55,10 +57,18 @@ export function SettingsTab({
   courtFeePerPerson, setCourtFeePerPerson,
   shuttlePrice, setShuttlePrice,
   onSeedMockHistory, onResetDay, onFactoryReset,
-  rankMemory, onLogout, onSwitchGroup, plan, isHelper, onImportSignups, promptPay, onChangePromptPay, queueUrl,
+  rankMemory, onLogout, onSwitchGroup, plan, isHelper, groupName = '', onRename, onImportSignups, promptPay, onChangePromptPay, queueUrl,
   sessionMode, setSessionMode, modeConfig, setModeConfig
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const [nameDraft, setNameDraft] = useState(groupName);
+  const [nameMsg, setNameMsg] = useState('');
+  const saveName = async () => {
+    const n = nameDraft.trim();
+    if (!n || !onRename || n === groupName) return;
+    setNameMsg((await onRename(n, null)) ? 'บันทึกชื่อแล้ว' : 'บันทึกไม่สำเร็จ');
+    setTimeout(() => setNameMsg(''), 2000);
+  };
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(queueUrl)}`;
 
   const copyUrl = () => {
@@ -105,6 +115,18 @@ export function SettingsTab({
           </button>
         </div>
       </section>
+
+      {onRename && !isHelper && (
+        <section className="bg-white rounded-[2rem] p-4 sm:p-5 shadow-sm border border-on-surface/5 space-y-3">
+          <p className="font-headline font-black text-base">ชื่อก๊วน</p>
+          <div className="flex gap-2">
+            <input value={nameDraft} maxLength={100} onChange={e => setNameDraft(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveName()}
+              className="flex-1 min-w-0 px-4 py-3 bg-background rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-primary/25" />
+            <button onClick={saveName} disabled={!nameDraft.trim() || nameDraft.trim() === groupName} className="px-5 py-3 rounded-xl bg-primary text-white font-black text-sm disabled:opacity-40">บันทึก</button>
+          </div>
+          {nameMsg && <p className="text-xs font-bold text-emerald-600">{nameMsg}</p>}
+        </section>
+      )}
 
       {plan && !isHelper && (
         <section className="bg-white rounded-[2rem] p-4 sm:p-5 shadow-sm border border-on-surface/5 space-y-3">

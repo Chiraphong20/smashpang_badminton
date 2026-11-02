@@ -1737,6 +1737,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                 {activeTab === 'settings' && (
                   <SettingsTab
                     isHelper={isHelper}
+                    groupName={groupName}
+                    onRename={onRename}
                     onImportSignups={importSignups}
                     plan={plan}
                     promptPay={promptPay}
