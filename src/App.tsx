@@ -1034,6 +1034,25 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     setNextQueuePrompt(null);
   };
 
+  // ลัดคิว: ย้ายผู้เล่นของคิวที่เลือก (คิวไหนก็ได้ ไม่ต้องเป็นคิวแรก) ลงคอร์ทนี้ทันที แล้วเอาคิวนั้นออก
+  // ไม่เริ่มเกมให้ — ผู้จัดยังปรับได้ก่อนกดเริ่ม · คนเดิมที่ถูกจัดไว้ในคอร์ทนี้กลับไปรอคิว
+  const useQueueSlotOnCourt = (courtId: string, slot: CourtQueueSlot) => {
+    const court = courts.find(c => c.id === courtId);
+    if (!court || court.status === 'active') return;
+    const ids = [slot.teamA[0], slot.teamA[1], slot.teamB[0], slot.teamB[1]].map(p => p?.memberId || null);
+    const busy = ids.filter((id): id is string => !!id).map(id => members.find(m => m.id === id))
+      .filter(m => !m || (m.status !== 'waiting' && !court.players.includes(m.id)));
+    if (busy.length > 0) {
+      alert(`ลงสนามด้วยคิวนี้ไม่ได้ — ${busy.map(m => m?.name ?? 'ผู้เล่นที่ถูกลบแล้ว').join(', ')} ไม่ว่างหรือไม่ได้อยู่ในรายการรอ`);
+      return;
+    }
+    const slotIds = ids.filter((id): id is string => !!id);
+    const released = court.players.filter((id): id is string => !!id && !slotIds.includes(id));
+    setCourts(prev => prev.map(c => c.id === courtId ? { ...c, players: ids } : c));
+    setMembers(prev => prev.map(m => slotIds.includes(m.id) ? { ...m, status: 'playing' } : released.includes(m.id) ? { ...m, status: 'waiting' } : m));
+    setCourtQueues(prev => ({ ...prev, [courtId]: (prev[courtId] || []).filter(s => s.id !== slot.id) }));
+  };
+
   // Next-queue prompt: Esc dismisses, Enter starts at the suggested court (the default action)
   useModalHotkeys({
     onClose: () => setNextQueuePrompt(null),
@@ -1781,6 +1800,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     profiles={playerProfiles}
                     members={members} courts={courts} snacks={snacks}
                     searchQuery={searchQuery} gameHistory={gameHistory}
+                    onUseQueueSlot={useQueueSlotOnCourt}
                     onAutoMatch={autoMatch} onStartGame={startGame} onResetCourt={resetCourt}
                     onRemovePlayer={removePlayerFromCourt} onAddPlayer={addPlayerToCourt}
                     onDeleteCourt={deleteCourt} onAddSnack={addSnacksToMember}

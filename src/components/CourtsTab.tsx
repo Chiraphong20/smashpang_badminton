@@ -75,6 +75,8 @@ interface Props {
   onRemoveCourtQueue: (courtId: string, slotId: string) => void;
   onUpdateCourtQueue: (courtId: string, slot: CourtQueueSlot) => void;
   onMoveCourtQueue: (courtId: string, slotId: string, dir: 'up' | 'down') => void;
+  /** ลัดคิว: ย้ายผู้เล่นของคิวที่เลือกลงคอร์ทนี้ทันที */
+  onUseQueueSlot: (courtId: string, slot: CourtQueueSlot) => void;
 }
 
 // ── Player Picker ─────────────────────────────────────────────────────────────
@@ -483,7 +485,7 @@ export function CourtsTab({
   onDeleteCourt, onAddSnack, onEditGame, onUndoGame, onUpdateCourt,
   minRankFilter, setMinRankFilter, maxRankFilter, setMaxRankFilter,
   onAddCourt,
-  courtQueues, onAddCourtQueue, onRemoveCourtQueue, onUpdateCourtQueue, onMoveCourtQueue,
+  courtQueues, onAddCourtQueue, onRemoveCourtQueue, onUpdateCourtQueue, onMoveCourtQueue, onUseQueueSlot,
   sessionMode, askScore, shuttleChargePerShuttle, focusCourtId, profiles = {},
 }: Props) {
   const [scoringCourtId, setScoringCourtId] = useState<string | null>(null);
@@ -563,16 +565,32 @@ export function CourtsTab({
       : sortBy === 'games' ? (a.gamesPlayed - b.gamesPlayed) || (a.checkInTime - b.checkInTime)
         : a.gamesPlayed !== b.gamesPlayed ? a.gamesPlayed - b.gamesPlayed : a.checkInTime - b.checkInTime);
 
+  // คอร์ทที่ยังไม่มีใครถูกจัดลง แต่มีคิวรออยู่ → ก่อนจัดคนลงคอร์ท ถามก่อนว่าจะใช้คิว/ลบคิว/จัดเองต่อ (ถามครั้งเดียวต่อรอบการจัด)
+  const [queueAsk, setQueueAsk] = useState<{ courtId: string; proceed: () => void } | null>(null);
+  const askedRef = useRef<Set<string>>(new Set());
+  useEffect(() => { courts.forEach(c => { if (c.status === 'active') askedRef.current.delete(c.id); }); }, [courts]);
+  const guardQueue = (proceed: () => void) => {
+    if (!selected || selected.status === 'active') { proceed(); return; }
+    const q = courtQueues[selected.id] || [];
+    const emptyCourt = selected.players.every(p => !p);
+    if (q.length === 0 || !emptyCourt || askedRef.current.has(selected.id)) { proceed(); return; }
+    setQueueAsk({ courtId: selected.id, proceed });
+  };
+  // ลบคิวจนหมดระหว่างที่ถามอยู่ → จัดคนต่อได้เลย
+  useEffect(() => {
+    if (queueAsk && (courtQueues[queueAsk.courtId] || []).length === 0) { const go = queueAsk.proceed; setQueueAsk(null); go(); }
+  }, [courtQueues, queueAsk]);
+
   const handleSelect = (slot: number, pid: string | null) => {
     if (!selected) return;
     if (pid === null) onRemovePlayer(selected.id, slot);
-    else onAddPlayer(selected.id, slot, pid);
+    else guardQueue(() => onAddPlayer(selected.id, slot, pid));
   };
 
   const handleDoubleClick = (m: Member) => {
     if (!selected) return;
     const empty = selected.players.findIndex(p => p === null);
-    if (empty !== -1) onAddPlayer(selected.id, empty, m.id);
+    if (empty !== -1) guardQueue(() => onAddPlayer(selected.id, empty, m.id));
     else alert('ไม่มีสล็อตว่างในคอร์ดนี้');
   };
 
@@ -767,6 +785,53 @@ export function CourtsTab({
           <POSModal member={posTarget} snacks={snacks} onAddSnack={onAddSnack} onClose={() => setPosTarget(null)} />
         )}
       </AnimatePresence>
+
+      {/* ถามเมื่อจะจัดคนลงคอร์ทที่มีคิวรออยู่ */}
+      {queueAsk && (() => {
+        const court = courts.find(c => c.id === queueAsk.courtId);
+        const slots = courtQueues[queueAsk.courtId] || [];
+        const close = () => setQueueAsk(null);
+        return (
+          <div className="fixed inset-0 z-[260] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-on-surface/60 backdrop-blur-sm" onClick={close} />
+            <div className="relative bg-white rounded-[2rem] p-5 sm:p-6 w-full max-w-md shadow-2xl z-10 max-h-[90vh] overflow-y-auto space-y-4">
+              <button onClick={close} className="absolute top-4 right-4 p-2 hover:bg-background rounded-full"><X size={18} /></button>
+              <div className="pr-8">
+                <h3 className="font-headline font-black text-xl">{court?.name} มีคิวรออยู่ {slots.length} คิว</h3>
+                <p className="text-sm font-semibold text-on-surface/55">จะจัดคนลงคอร์ทนี้เลยไหม? เลือกใช้คิวที่จัดไว้ (ข้ามลำดับได้) ลบคิว หรือจัดเองต่อไป</p>
+              </div>
+              <div className="space-y-2">
+                {slots.map((slot, idx) => (
+                  <div key={slot.id} className="rounded-2xl border border-on-surface/10 p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs shrink-0', idx === 0 ? 'bg-primary text-white' : 'bg-on-surface/5 text-on-surface/40')}>{idx + 1}</span>
+                      <p className="flex-1 min-w-0 text-sm font-bold leading-snug">
+                        {slot.teamA.map(p => p.name).join(' · ')}{slot.teamB.length > 0 && <span className="text-on-surface/30"> VS </span>}{slot.teamB.map(p => p.name).join(' · ')}
+                        {slot.note && <span className="block text-xs font-semibold text-on-surface/40">{slot.note}</span>}
+                      </p>
+                      <button onClick={() => onRemoveCourtQueue(queueAsk.courtId, slot.id)} title="ลบคิวนี้" className="p-1.5 rounded-lg text-on-surface/30 hover:text-error hover:bg-error/5"><Trash2 size={16} /></button>
+                    </div>
+                    <button onClick={() => { close(); onUseQueueSlot(queueAsk.courtId, slot); }}
+                      className="w-full py-2 rounded-xl bg-emerald-600 text-white text-sm font-black hover:bg-emerald-500 active:scale-95 transition">
+                      ▶ ใช้คิวนี้ลงคอร์ทเลย{idx > 0 ? ' (ลัดคิว)' : ''}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button onClick={() => { askedRef.current.add(queueAsk.courtId); const go = queueAsk.proceed; close(); go(); }}
+                  className="flex-1 min-w-[10rem] py-3 rounded-xl bg-primary text-white text-sm font-black hover:scale-[1.02] active:scale-95 transition">
+                  จัดเองต่อไป (เก็บคิวไว้)
+                </button>
+                <button onClick={() => { if (confirm(`ลบคิวทั้ง ${slots.length} คิวของ${court?.name}?`)) slots.forEach(sl => onRemoveCourtQueue(queueAsk.courtId, sl.id)); }}
+                  className="py-3 px-4 rounded-xl bg-red-50 text-red-600 text-sm font-black hover:bg-red-100 active:scale-95 transition">
+                  ลบคิวทั้งหมด
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Queue Slot Editor */}
       {editingSlot && (
@@ -1088,7 +1153,7 @@ export function CourtsTab({
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <RefreshCw size={16} /> สลับทีม
                       </button>
-                      <button onClick={() => { expectPromptRef.current = true; onAutoMatch(selected.id); }}
+                      <button onClick={() => guardQueue(() => { expectPromptRef.current = true; onAutoMatch(selected.id); })}
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <Wand2 size={16} /> จัดอัตโนมัติ
                       </button>

@@ -15,6 +15,7 @@ import {
 import { ListingEditor } from './ListingEditor';
 import { HelpersManager } from './HelpersManager';
 import { SignupManager } from './SignupManager';
+import { ShareLink } from './ShareLink';
 import { PromptPayQR } from './PromptPayQR';
 import { parsePromptPayId } from '../lib/promptpay';
 import type { PlanInfo } from '../lib/api';
@@ -60,7 +61,6 @@ export function SettingsTab({
   rankMemory, onLogout, onSwitchGroup, plan, isHelper, groupName = '', onRename, onImportSignups, promptPay, onChangePromptPay, queueUrl,
   sessionMode, setSessionMode, modeConfig, setModeConfig
 }: Props) {
-  const [copied, setCopied] = useState(false);
   const [nameDraft, setNameDraft] = useState(groupName);
   const [nameMsg, setNameMsg] = useState('');
   const saveName = async () => {
@@ -69,25 +69,6 @@ export function SettingsTab({
     setNameMsg((await onRename(n, null)) ? 'บันทึกชื่อแล้ว' : 'บันทึกไม่สำเร็จ');
     setTimeout(() => setNameMsg(''), 2000);
   };
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(queueUrl)}`;
-
-  const copyUrl = () => {
-    navigator.clipboard.writeText(queueUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const downloadQr = async () => {
-    const res = await fetch(qrSrc);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'queue-qrcode.png';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="space-y-8 max-w-4xl mx-auto pb-20">
       <div className="flex items-center gap-4 mb-4 sm:mb-8">
@@ -313,55 +294,11 @@ export function SettingsTab({
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8">
-          <div className="flex flex-col items-center gap-3 shrink-0">
-            <div className="bg-white p-3 rounded-2xl border-2 border-on-surface/5 shadow-sm">
-              <img
-                src={qrSrc}
-                alt="Queue QR Code"
-                width={180}
-                height={180}
-                className="rounded-xl"
-              />
-            </div>
-            <button
-              onClick={downloadQr}
-              className="flex items-center gap-2 bg-on-surface/5 hover:bg-on-surface/10 text-on-surface/60 px-5 py-2 rounded-xl text-sm font-bold transition-all hover:scale-105 active:scale-95 w-full justify-center"
-            >
-              <Download size={15} /> ดาวน์โหลด QR
-            </button>
-          </div>
+        <ShareLink url={queueUrl} title={groupName || 'คิวแบดมินตัน'} caption="สแกนดูคิวและสนาม" filename="queue-qrcode.png" size={190} />
 
-          <div className="w-full min-w-0 flex-1 space-y-4">
-            <div>
-              <p className="text-xs font-bold text-on-surface/40 mb-2">URL หน้าคิว</p>
-              <div className="flex items-center gap-2 bg-background rounded-2xl px-3 sm:px-4 py-3 min-w-0">
-                <p className="text-xs sm:text-sm font-semibold text-on-surface/70 flex-1 min-w-0 truncate">{queueUrl}</p>
-                <button
-                  onClick={copyUrl}
-                  className="flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 hover:scale-105 active:scale-95 transition-all"
-                >
-                  {copied ? <><Check size={12} /> คัดลอกแล้ว</> : <><Copy size={12} /> คัดลอก</>}
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm text-on-surface/50">
-              <p className="flex items-center gap-2 font-semibold">✅ แสดงสนามที่กำลังตีอยู่</p>
-              <p className="flex items-center gap-2 font-semibold">✅ แสดงคิวรอตามลำดับ</p>
-              <p className="flex items-center gap-2 font-semibold">✅ อัปเดตอัตโนมัติทุก 20 วินาที</p>
-              <p className="flex items-center gap-2 font-semibold">✅ ไม่ต้องล็อกอิน — ดูได้ทุกคน</p>
-            </div>
-
-            <a
-              href={queueUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex sm:inline-flex items-center justify-center gap-2 bg-secondary/10 text-secondary px-5 py-3 rounded-xl font-bold text-sm hover:bg-secondary/20 transition-all"
-            >
-              <QrCode size={16} /> ดูตัวอย่างหน้าคิว →
-            </a>
-          </div>
+        <div className="mt-5 space-y-1.5 text-sm text-on-surface/50">
+          <p className="font-semibold">✅ แสดงทุกสนาม คิวถัดไป และรายชื่อคนที่รอลงสนาม · ค้นหาชื่อตัวเองได้</p>
+          <p className="font-semibold">✅ อัปเดตอัตโนมัติทุก 20 วินาที · ไม่ต้องล็อกอิน ดูได้ทุกคน</p>
         </div>
       </section>
     </div>

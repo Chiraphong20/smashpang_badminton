@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Copy, Check, X } from 'lucide-react';
 import { apiFetch, apiJson, getGroupId, groupUrl } from '../lib/api';
+import { ShareLink } from './ShareLink';
 
 interface Entry { id: string; name: string; contact: string; status: 'confirmed' | 'waitlist'; position: number }
 interface Data { open: boolean; capacity: number; title: string; note: string; entries: Entry[] }
@@ -66,12 +67,7 @@ export function SignupManager({ maxPlayers, onImport }: { maxPlayers?: number | 
         {msg && <span className="text-xs font-bold text-emerald-600">{msg}</span>}
       </div>
 
-      <div className="flex items-center gap-2 bg-background rounded-xl px-3 py-2">
-        <span className="flex-1 min-w-0 truncate text-xs font-bold text-on-surface/60">{link}</span>
-        <button onClick={() => { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1800); }} className="px-3 py-1.5 rounded-lg bg-white text-xs font-black flex items-center gap-1.5 shadow-sm">
-          {copied ? <><Check size={14} /> คัดลอกแล้ว</> : <><Copy size={14} /> คัดลอก</>}
-        </button>
-      </div>
+      <ShareLink url={link} title={cfg.title || 'ลงชื่อเล่นก๊วน'} caption="สแกนเพื่อลงชื่อ" filename="signup-qrcode.png" size={150} />
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
