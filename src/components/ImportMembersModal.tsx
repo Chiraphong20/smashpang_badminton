@@ -278,9 +278,9 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
                 const dupAsk = isExisting && mode === 'line' && !todayAsk && !sameOk.has(p.id);
                 const similar = !isExisting && mode === 'line' && !notSame.has(p.id) ? similarNames(p.name, existingNames) : [];
                 return (
-                  <div key={p.id} className={cn("flex items-center gap-3 rounded-2xl px-4 py-3 transition-colors", isExisting ? "bg-primary/5" : "bg-background")}>
+                  <div key={p.id} className={cn("flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 rounded-2xl px-3 sm:px-4 py-3 transition-colors", isExisting ? "bg-primary/5" : "bg-background")}>
                     <span className="text-xs font-black text-on-surface/30 w-6 text-center shrink-0">{idx + 1}</span>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 basis-[calc(100%-6.5rem)] sm:basis-0">
                       <input
                         id={`imp-name-${p.id}`}
                         value={p.name}
@@ -345,12 +345,12 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
                       )}
                     </div>
                     {/* Rank selector */}
-                    <div className="grid grid-cols-5 gap-1 shrink-0">
+                    <div className="order-3 sm:order-none basis-full sm:basis-auto grid grid-cols-8 sm:grid-cols-5 gap-1 sm:shrink-0">
                       {RANKS.map(r => (
                         <button key={r} onClick={() => updateRank(p.id, r)}
                           title={RANK_LEVEL_LABELS[r]}
                           className={cn(
-                            'w-7 h-7 rounded-lg text-xs font-bold transition-all border-2 border-transparent',
+                            'w-full sm:w-7 aspect-square sm:aspect-auto sm:h-7 rounded-lg text-[10px] sm:text-xs font-bold transition-all border-2 border-transparent',
                             p.rank === r
                               ? RANK_COLORS[r] + ' border-primary shadow-sm scale-110'
                               : 'bg-on-surface/5 text-on-surface/40 hover:bg-on-surface/10'
@@ -360,7 +360,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
                       ))}
                     </div>
                     <button onClick={() => removeParsed(p.id)}
-                      className="text-on-surface/20 hover:text-error p-1 shrink-0 transition-colors">
+                      className="order-2 sm:order-none text-on-surface/20 hover:text-error p-1 shrink-0 transition-colors">
                       <Trash2 size={14} />
                     </button>
                   </div>
