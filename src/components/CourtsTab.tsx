@@ -577,6 +577,18 @@ export function CourtsTab({
     if (!anyQueue || !emptyCourt || askedRef.current.has(selected.id)) { proceed(); return; }
     setQueueAsk({ courtId: selected.id, proceed });
   };
+  // ปุ่ม "เอาคิวลงคอร์ท": มีคิวเดียว → ย้ายลงเลย · หลายคิว → เปิดหน้าต่างให้เลือก (คิวของคอร์ทนี้ขึ้นก่อน)
+  const allQueueSlots = courts
+    .flatMap(c => (courtQueues[c.id] || []).map(slot => ({ courtId: c.id, slot })))
+    .sort((a, b) => (a.courtId === selected?.id ? 0 : 1) - (b.courtId === selected?.id ? 0 : 1));
+  const pullFromQueue = () => {
+    if (!selected || selected.status === 'active' || allQueueSlots.length === 0) return;
+    if (allQueueSlots.length > 1) { setQueueAsk({ courtId: selected.id, proceed: () => {} }); return; }
+    const only = allQueueSlots[0];
+    if (selected.players.some(Boolean) && !confirm('คนที่จัดไว้ในคอร์ทนี้จะกลับไปรอคิว แล้วใช้ผู้เล่นจากคิวแทน ตกลงไหม?')) return;
+    onUseQueueSlot(selected.id, only.slot, only.courtId);
+  };
+
   // ลบคิวจนหมดทุกคอร์ทระหว่างที่ถามอยู่ → จัดคนต่อได้เลย
   useEffect(() => {
     if (queueAsk && !Object.values(courtQueues).some(q => q && q.length > 0)) { const go = queueAsk.proceed; setQueueAsk(null); go(); }
@@ -1156,6 +1168,12 @@ export function CourtsTab({
                     </button>
                   ) : (
                     <>
+                      {allQueueSlots.length > 0 && (
+                        <button onClick={pullFromQueue}
+                          className="basis-full lg:basis-auto flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-black text-sm border-2 border-emerald-500 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 transition whitespace-nowrap">
+                          ⏭ เอาคิวลง{selected.name} ({allQueueSlots.length} คิว)
+                        </button>
+                      )}
                       <button onClick={swapTeams} title="สุ่มจัดคู่ใหม่ — กดซ้ำได้จนกว่าจะถูกใจ"
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <RefreshCw size={16} /> สลับทีม
