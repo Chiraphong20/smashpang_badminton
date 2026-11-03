@@ -77,6 +77,12 @@ pub.get('/queue', async (req, res) => {
     states.forEach(row => {
       try { result[row.state_key] = JSON.parse(row.state_value); } catch { /* ignore corrupt value */ }
     });
+    // จอคิวเป็นลิงก์สาธารณะ: ตัดยอดเงิน ค่าใช้จ่าย และประวัติซื้อของของผู้เล่นออก เหลือแค่ที่ใช้แสดงคิว
+    if (Array.isArray(result.members)) {
+      result.members = result.members.map(m => ({
+        id: m.id, name: m.name, rank: m.rank, status: m.status, gamesPlayed: m.gamesPlayed || 0, checkInTime: m.checkInTime || 0,
+      }));
+    }
     res.json(result);
   } catch (err) {
     console.error(err);
