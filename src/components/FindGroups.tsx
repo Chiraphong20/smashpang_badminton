@@ -7,6 +7,11 @@ import { authField } from './AuthShell';
 
 // หน้าสาธารณะสำหรับนักแบดที่อยากหาก๊วนตี: /?find
 export function FindGroups() {
+  useEffect(() => {
+    const prev = document.title;
+    document.title = 'หาก๊วนตีแบด เปิดรับสมาชิก เลือกตามวันและระดับมือ | SmashPang';
+    return () => { document.title = prev; };
+  }, []);
   const [day, setDay] = useState<number | null>(null);
   const [level, setLevel] = useState('');
   const [q, setQ] = useState('');

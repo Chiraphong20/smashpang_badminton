@@ -733,6 +733,11 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'not_found' }));
 
 // Fallback for SPA routing: serve index.html for all other requests
 app.get('*', (req, res) => {
+  // หน้าภายในแอป (ก๊วน แอดมิน บัญชี จอคิว หน้าลงชื่อ) ไม่ให้ search engine เก็บ — เก็บเฉพาะหน้าแรกและหน้าหาก๊วน
+  const q = req.query;
+  if (['g', 'admin', 'account', 'verify', 'join', 'queue', 'signup'].some(k => k in q)) {
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+  }
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 

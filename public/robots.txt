@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /*?admin
+Disallow: /*?g=
+Disallow: /*?account
+Disallow: /*?verify
+
+Sitemap: https://smashpang.duckdns.org/sitemap.xml

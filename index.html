@@ -1,16 +1,64 @@
 <!doctype html>
-<html lang="en">
+<html lang="th">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmashPang</title>
+  <title>SmashPang — ระบบจัดก๊วนแบดมินตัน จัดคอร์ท จับคู่ คิดเงิน ใช้งานง่าย</title>
+  <meta name="description" content="SmashPang ระบบจัดก๊วนแบดมินตันสำหรับคนจัดก๊วน จัดคอร์ท จับคู่ผู้เล่น คิดเงินค่าคอร์ทค่าลูกอัตโนมัติ QR พร้อมเพย์ ลงชื่อล่วงหน้า สถิติและอันดับ ใช้ได้บนมือถือ iPad และคอม ไม่ต้องติดตั้งแอป" />
+  <meta name="keywords" content="ระบบจัดก๊วนแบด, โปรแกรมจัดก๊วนแบดมินตัน, จัดก๊วนแบด, จัดคอร์ทแบด, คิดเงินก๊วนแบด, หาก๊วนตีแบด, แบดมินตัน, SmashPang" />
+  <meta name="theme-color" content="#1b2a6b" />
+  <link rel="canonical" href="https://smashpang.duckdns.org/" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="SmashPang" />
+  <meta property="og:locale" content="th_TH" />
+  <meta property="og:title" content="SmashPang — ระบบจัดก๊วนแบดมินตัน" />
+  <meta property="og:description" content="จัดคอร์ท จับคู่ คิดเงินอัตโนมัติ QR พร้อมเพย์ ลงชื่อล่วงหน้า สถิติและอันดับ สำหรับคนจัดก๊วนแบด" />
+  <meta property="og:url" content="https://smashpang.duckdns.org/" />
+  <meta property="og:image" content="https://smashpang.duckdns.org/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SmashPang — ระบบจัดก๊วนแบดมินตัน" />
+  <meta name="twitter:description" content="จัดคอร์ท จับคู่ คิดเงินอัตโนมัติ QR พร้อมเพย์ ลงชื่อล่วงหน้า สถิติและอันดับ" />
+  <meta name="twitter:image" content="https://smashpang.duckdns.org/og-image.png" />
+
   <link rel="icon"
     href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏸</text></svg>">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "SmashPang",
+    "url": "https://smashpang.duckdns.org/",
+    "description": "ระบบจัดก๊วนแบดมินตัน จัดคอร์ท จับคู่ผู้เล่น คิดเงินค่าคอร์ทและค่าลูกอัตโนมัติ QR พร้อมเพย์ ลงชื่อล่วงหน้า สถิติและอันดับ",
+    "applicationCategory": "SportsApplication",
+    "operatingSystem": "Web (มือถือ iPad คอมพิวเตอร์)",
+    "inLanguage": "th",
+    "image": "https://smashpang.duckdns.org/og-image.png",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "THB" }
+  }
+  </script>
 </head>
 
 <body>
   <div id="root"></div>
+  <!-- เนื้อหาสำหรับบอตที่ไม่รัน JavaScript / ผู้ใช้ที่ปิด JS -->
+  <noscript>
+    <main style="max-width:720px;margin:40px auto;padding:0 16px;font-family:sans-serif;line-height:1.7">
+      <h1>SmashPang — ระบบจัดก๊วนแบดมินตัน</h1>
+      <p>ระบบสำหรับคนจัดก๊วนแบดมินตัน จัดคอร์ท จับคู่ผู้เล่นตามระดับมือ คิดเงินค่าคอร์ทค่าลูกค่าน้ำอัตโนมัติ
+        รับเงินด้วย QR พร้อมเพย์ ให้ผู้เล่นลงชื่อล่วงหน้าผ่านลิงก์ นำเข้ารายชื่อจาก LINE ดูสถิติและอันดับของก๊วน
+        ใช้งานผ่านเบราว์เซอร์บนมือถือ iPad และคอมพิวเตอร์ ไม่ต้องติดตั้งแอป</p>
+      <ul>
+        <li>4 โหมด: คิดตามเกม บุฟเฟต์ หารเท่า และสนุกไม่คิดเงิน</li>
+        <li>หาก๊วนตีแบดที่เปิดรับสมาชิก เลือกตามวันและระดับมือ</li>
+      </ul>
+      <p>ต้องเปิดใช้งาน JavaScript เพื่อใช้งานระบบ</p>
+    </main>
+  </noscript>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 
