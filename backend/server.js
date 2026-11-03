@@ -23,7 +23,7 @@ app.use(express.json({ limit: '50mb' }));
 app.set('trust proxy', 1);
 
 // Serve static assets from the frontend build
-app.use(express.static(path.join(__dirname, '../dist')));
+app.use(express.static(path.join(__dirname, '../dist'), { index: false })); // index.html ส่งผ่าน catch-all ด้านล่างเพื่อใส่ header ตามหน้า
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
