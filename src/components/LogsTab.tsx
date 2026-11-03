@@ -1,6 +1,7 @@
 import React from 'react';
 import { GameRecord, Member, PaymentRecord, RANK_COLORS, SessionRecord, PlayerProfile } from '../types';
 import { SlotCard } from './CourtsTab';
+import { sessionPlayerIds } from '../lib/sessionStats';
 import { History, LayoutDashboard, Trophy, Clock, X, Check, Banknote, ShoppingCart, ChevronDown, ChevronUp, Calendar, Search, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
@@ -346,7 +347,7 @@ export function LogsTab({ gameHistory, sessionHistory, members, paymentHistory, 
                             </p>
                             <p className="text-xs font-semibold text-on-surface/45">
                               {item.session
-                                ? `${item.session.gameHistory.length} เกม · ${item.session.membersSnapshot.length} ผู้เล่น`
+                                ? `${item.session.gameHistory.length} เกม · ${sessionPlayerIds(item.session).size} ผู้เล่น`
                                 : loadingSession === item.dateStr ? 'กำลังโหลด...' : 'กดเพื่อโหลดข้อมูล'}
                             </p>
                           </div>
