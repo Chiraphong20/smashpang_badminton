@@ -1036,7 +1036,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
 
   // ลัดคิว: ย้ายผู้เล่นของคิวที่เลือก (คิวไหนก็ได้ ไม่ต้องเป็นคิวแรก) ลงคอร์ทนี้ทันที แล้วเอาคิวนั้นออก
   // ไม่เริ่มเกมให้ — ผู้จัดยังปรับได้ก่อนกดเริ่ม · คนเดิมที่ถูกจัดไว้ในคอร์ทนี้กลับไปรอคิว
-  const useQueueSlotOnCourt = (courtId: string, slot: CourtQueueSlot) => {
+  const useQueueSlotOnCourt = (courtId: string, slot: CourtQueueSlot, sourceCourtId: string = courtId) => {
     const court = courts.find(c => c.id === courtId);
     if (!court || court.status === 'active') return;
     const ids = [slot.teamA[0], slot.teamA[1], slot.teamB[0], slot.teamB[1]].map(p => p?.memberId || null);
@@ -1050,7 +1050,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     const released = court.players.filter((id): id is string => !!id && !slotIds.includes(id));
     setCourts(prev => prev.map(c => c.id === courtId ? { ...c, players: ids } : c));
     setMembers(prev => prev.map(m => slotIds.includes(m.id) ? { ...m, status: 'playing' } : released.includes(m.id) ? { ...m, status: 'waiting' } : m));
-    setCourtQueues(prev => ({ ...prev, [courtId]: (prev[courtId] || []).filter(s => s.id !== slot.id) }));
+    setCourtQueues(prev => ({ ...prev, [sourceCourtId]: (prev[sourceCourtId] || []).filter(s => s.id !== slot.id) }));
   };
 
   // Next-queue prompt: Esc dismisses, Enter starts at the suggested court (the default action)
