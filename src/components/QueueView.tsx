@@ -80,6 +80,13 @@ export function QueueView() {
     if (!queuedCourt.has(key)) queuedCourt.set(key, `${c.name}${idx > 0 ? ` (คิวที่ ${idx + 1})` : ''}`);
   })));
 
+  const QueueChip = ({ p, hit }: { p: { name: string; rank: Rank }; hit: boolean }) => (
+    <div className={cn('flex items-center gap-1 px-2 py-1 rounded-lg text-sm font-bold', RANK_COLORS[p.rank], hit && 'ring-2 ring-yellow-400')}>
+      <span className="text-xs font-bold opacity-70">{p.rank}</span>
+      <span>{p.name}</span>
+    </div>
+  );
+
   const Person = ({ name, rank, right }: { name: string; rank: Rank; right?: boolean }) => (
     <div className={cn('flex items-center gap-2', right && 'justify-end')}>
       {!right && <span className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0', RANK_COLORS[rank])}>{rank}</span>}
@@ -158,20 +165,26 @@ export function QueueView() {
                     )}
 
                     {nextSlots.length > 0 && (
-                      <div className="mt-4 pt-3 border-t border-on-surface/5 space-y-2">
-                        <p className="text-xs font-bold text-primary">⏭ คิวถัดไปของ{court.name}</p>
+                      <div className="mt-4 -mx-5 -mb-5 rounded-b-3xl bg-primary/[0.04] border-t border-primary/10 px-5 pt-3 pb-4 space-y-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center text-sm">⏭</span>
+                          <p className="text-sm font-black text-on-surface">คิวตีต่อไป</p>
+                          <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-bold">{nextSlots.length}</span>
+                        </div>
                         {nextSlots.slice(0, 4).map((slot, idx) => (
-                          <div key={slot.id} className="flex items-start gap-2 text-sm">
-                            <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-black flex items-center justify-center shrink-0">{idx + 1}</span>
-                            <p className="font-semibold text-on-surface/70 leading-snug">
-                              {[...slot.teamA, ...slot.teamB].map((p, k) => (
-                                <span key={k}>{k > 0 && <span className="text-on-surface/25"> · </span>}<span className={cn(match(p.name) && 'bg-yellow-200 rounded px-1')}>{p.name}</span></span>
-                              ))}
-                              {slot.note && <span className="text-on-surface/35"> ({slot.note})</span>}
-                            </p>
+                          <div key={slot.id} className="bg-white rounded-2xl border border-on-surface/5 shadow-sm p-3 flex items-center gap-3">
+                            <span className={cn('w-8 h-8 rounded-xl flex items-center justify-center font-black text-sm shrink-0', idx === 0 ? 'bg-primary text-white' : 'bg-on-surface/5 text-on-surface/40')}>{idx + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+                                <div className="flex flex-wrap gap-1.5">{slot.teamA.map((p, k) => <QueueChip key={k} p={p} hit={match(p.name)} />)}</div>
+                                {slot.teamA.length > 0 && slot.teamB.length > 0 ? <span className="text-on-surface/25 font-black text-xs">VS</span> : <span />}
+                                <div className="flex flex-wrap gap-1.5 justify-end">{slot.teamB.map((p, k) => <QueueChip key={k} p={p} hit={match(p.name)} />)}</div>
+                              </div>
+                              {slot.note && <p className="text-xs text-on-surface/40 font-semibold mt-1.5">{slot.note}</p>}
+                            </div>
                           </div>
                         ))}
-                        {nextSlots.length > 4 && <p className="text-xs text-on-surface/30">และอีก {nextSlots.length - 4} คิว</p>}
+                        {nextSlots.length > 4 && <p className="text-xs font-bold text-on-surface/35 text-center">และอีก {nextSlots.length - 4} คิว</p>}
                       </div>
                     )}
                   </div>
