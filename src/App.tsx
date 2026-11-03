@@ -271,12 +271,28 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
   // Save ขึ้น DB แบบรู้เวอร์ชัน: ถ้าเครื่องอื่น save ไปแล้วหลังจากที่เราโหลดข้อมูลล่าสุด
   // (เซิร์ฟเวอร์ตอบ 409) แปลว่าข้อมูลในเครื่องนี้เก่ากว่าความจริงแล้ว ห้าม save ทับ
   // ให้รีโหลดหน้าใหม่เพื่อดึงข้อมูลล่าสุดมาแทนทันที
-  const postState = async (body: Record<string, unknown>) => {
+  // บันทึกทีละครั้งตามลำดับ (กันสองคำสั่งบันทึกชนกันเอง จนเซิร์ฟเวอร์ตอบ 409 ทั้งที่ไม่มีใครอื่นแก้) และ
+  // เมื่อพบว่าอีกเครื่องบันทึกไปก่อนจริงๆ จะ "ไม่รีเฟรชหน้าเอง" แต่แสดงแถบแจ้งให้ผู้ใช้เลือก
+  // (รีเฟรชทันทีทำให้งานที่กำลังจัดคอร์ท/กรอกอยู่หาย)
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const inFlightRef = useRef(0);
+  const staleRef = useRef(false);
+  const [staleVersion, setStaleVersion] = useState<number | null>(null);
+  const markStale = (serverVersion: number) => { staleRef.current = true; setStaleVersion(serverVersion); };
+  const postState = (body: Record<string, unknown>): Promise<void> => {
+    inFlightRef.current++;
+    const run = saveChainRef.current.then(() => doPostState(body)).finally(() => { inFlightRef.current--; });
+    saveChainRef.current = run.catch(() => {});
+    return run;
+  };
+  const doPostState = async (body: Record<string, unknown>) => {
+    if (staleRef.current) return; // ข้อมูลเครื่องนี้เก่ากว่าเซิร์ฟเวอร์อยู่ — รอผู้ใช้เลือกก่อน ไม่บันทึกทับ
     try {
       const res = await apiJson('/state', { ...body, _version: stateVersionRef.current });
       if (res.status === 409) {
-        console.warn('⚠️ มีการบันทึกข้อมูลจากเครื่อง/แท็บอื่นไปแล้ว — โหลดข้อมูลล่าสุดใหม่เพื่อกันข้อมูลชนกัน');
-        location.reload();
+        const d = await res.clone().json().catch(() => ({}));
+        console.warn('⚠️ มีการบันทึกข้อมูลจากเครื่อง/แท็บอื่นไปแล้ว — รอให้ผู้ใช้เลือกว่าจะโหลดใหม่หรือบันทึกทับ');
+        markStale(typeof d.currentVersion === 'number' ? d.currentVersion : stateVersionRef.current + 1);
         return;
       }
       if (res.status === 403) {
@@ -319,9 +335,11 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
         const res = await apiFetch('/state');
         if (!res.ok) return;
         const data = await res.json();
+        // กำลังบันทึกอยู่ (ตัวเลขเวอร์ชันยังไม่ทันอัปเดต) ห้ามนับว่าเป็นการแก้จากที่อื่น
+        if (inFlightRef.current > 0 || staleRef.current) return;
         if (typeof data._version === 'number' && data._version !== stateVersionRef.current) {
-          console.warn('⚠️ ข้อมูลในเครื่องนี้เก่ากว่าเซิร์ฟเวอร์ (มีการอัปเดตจากที่อื่น) กำลังโหลดข้อมูลล่าสุด...');
-          location.reload();
+          console.warn('⚠️ ข้อมูลในเครื่องนี้เก่ากว่าเซิร์ฟเวอร์ (มีการอัปเดตจากที่อื่น)');
+          markStale(data._version);
         }
       } catch {}
     };
@@ -1433,6 +1451,17 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
 
   return (
     <>
+      {staleVersion !== null && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[600] w-[min(92vw,34rem)] bg-amber-50 border-2 border-amber-300 rounded-2xl shadow-2xl p-4 space-y-2">
+          <p className="font-black text-amber-800 text-sm">⚠️ มีการแก้ข้อมูลจากอีกเครื่อง/แท็บ</p>
+          <p className="text-xs font-semibold text-amber-800/80">ข้อมูลในหน้านี้อาจไม่ใช่ล่าสุด และยังไม่ถูกบันทึกขึ้นระบบ จนกว่าจะเลือกด้านล่าง (ระบบไม่รีเฟรชให้เองแล้ว งานที่กำลังทำอยู่จะไม่หาย)</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => location.reload()} className="px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-black hover:bg-amber-600 active:scale-95">โหลดข้อมูลล่าสุด</button>
+            <button onClick={() => { stateVersionRef.current = staleVersion; staleRef.current = false; setStaleVersion(null); postState(autoSaveStateRef.current as Record<string, unknown>); }}
+              className="px-4 py-2 rounded-xl bg-white border border-amber-300 text-amber-800 text-sm font-black hover:bg-amber-100 active:scale-95">บันทึกทับด้วยข้อมูลเครื่องนี้</button>
+          </div>
+        </div>
+      )}
       <AnimatePresence>
         {isInitialLoading && <SplashScreen key="splash" groupName={groupName} />}
       </AnimatePresence>
