@@ -62,6 +62,9 @@ interface Props {
   /** แพ็กเกจเปิดใช้พร้อมเพย์ QR / สินค้า หรือไม่ (ไม่ส่ง = เปิด) */
   promptPayOn?: boolean;
   productsOn?: boolean;
+  /** ตั้งราคาจากแถบโหมดได้เลย (โหมดนับเกม) */
+  onChangeCourtFee?: (v: number) => void;
+  onChangeShuttlePrice?: (v: number) => void;
   /** ผู้ช่วยแก้พร้อมเพย์ไม่ได้ */
   canEditPromptPay?: boolean;
 }
@@ -467,9 +470,10 @@ export function DashboardTab({
   onAddCourt, isSidebarCollapsed, onCheckIn, onRemove, onResetDay,
   onClearBoard, onUpdateGame,
   isSyncing, onImportLine,
-  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay, onChangePromptPay, canEditPromptPay = true, promptPayOn = true, productsOn = true
+  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay, onChangePromptPay, canEditPromptPay = true, promptPayOn = true, productsOn = true, onChangeCourtFee, onChangeShuttlePrice
 }: Props) {
   const [showPayQr, setShowPayQr] = useState(false);
+  const [editPrice, setEditPrice] = useState(false);
   const [rankPickId, setRankPickId] = useState<string | null>(null);
   // เก็บแค่ id ไม่เก็บ snapshot ของ Member ทั้งก้อน — เดี๋ยว modal จะได้อ่านข้อมูลสดจาก currentMembers
   // เสมอ (ไม่งั้นพอลบสินค้า/แก้ไขอะไรระหว่างเปิด modal อยู่ จะไม่เห็นการเปลี่ยนแปลงจนกว่าจะปิดเปิดใหม่)
@@ -838,7 +842,34 @@ export function DashboardTab({
           <div className="rounded-3xl p-4 sm:p-5 border-2 space-y-3" style={{ backgroundColor: t.soft, borderColor: t.color + '55' }}>
             <div className="flex flex-wrap items-center gap-3">
               <span className="px-4 py-1.5 rounded-full text-white text-sm font-black shadow-sm" style={{ backgroundColor: t.color }}>{t.emoji} โหมด{MODE_LABELS[mode]}</span>
-              <p className="text-sm font-bold flex-1 min-w-[12rem]" style={{ color: t.color }}>{desc}</p>
+              {(() => {
+                const canEdit = !isReadOnly && ((mode === 'perGame' && !!onChangeCourtFee && !!onChangeShuttlePrice) || mode === 'buffet');
+                const num = (v: string) => Math.max(0, Number(v) || 0);
+                const box = 'w-24 px-3 py-2 rounded-xl bg-white font-headline font-black text-base text-center focus:outline-none focus:ring-2';
+                if (canEdit && editPrice) {
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[12rem] text-sm font-bold" style={{ color: t.color }}>
+                      {mode === 'perGame' ? (
+                        <>
+                          <label className="flex items-center gap-1.5">ค่าสนาม ฿<input autoFocus type="number" inputMode="decimal" min={0} value={courtFeePerPerson ?? 0} onChange={e => onChangeCourtFee!(num(e.target.value))} className={box} />/คน</label>
+                          <label className="flex items-center gap-1.5">ค่าลูก ฿<input type="number" inputMode="decimal" min={0} value={shuttlePrice ?? 0} onChange={e => onChangeShuttlePrice!(num(e.target.value))} className={box} />/ลูก</label>
+                        </>
+                      ) : (
+                        <label className="flex items-center gap-1.5">บุฟเฟต์ ฿<input autoFocus type="number" inputMode="decimal" min={0} value={modeConfig.buffetPrice} onChange={e => onChangeConfig({ buffetPrice: num(e.target.value) })} className={box} />/คน</label>
+                      )}
+                      <button onClick={() => setEditPrice(false)} className="px-4 py-2 rounded-xl text-white text-xs font-black" style={{ backgroundColor: t.color }}>เสร็จ</button>
+                    </div>
+                  );
+                }
+                return canEdit ? (
+                  <button onClick={() => setEditPrice(true)} title="แตะเพื่อแก้ราคา"
+                    className="text-sm font-bold flex-1 min-w-[12rem] text-left underline decoration-dotted underline-offset-4 hover:opacity-80" style={{ color: t.color }}>
+                    {desc} <span className="no-underline">✏️</span>
+                  </button>
+                ) : (
+                  <p className="text-sm font-bold flex-1 min-w-[12rem]" style={{ color: t.color }}>{desc}</p>
+                );
+              })()}
               {promptPayOn && <button onClick={() => setShowPayQr(true)}
                 className="px-5 py-2.5 rounded-2xl text-white text-sm font-black shadow-lg ring-4 ring-white/70 hover:scale-105 active:scale-95 transition-transform flex items-center gap-2"
                 style={{ background: 'linear-gradient(135deg, #1a4f9c, #0ea5e9)', boxShadow: '0 8px 20px -6px rgba(14,165,233,.65)' }}>

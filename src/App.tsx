@@ -1776,6 +1776,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     promptPay={promptPay}
                     onChangePromptPay={setPromptPay}
                     promptPayOn={promptPayOn}
+                    onChangeCourtFee={setCourtFeePerPerson}
+                    onChangeShuttlePrice={setShuttlePrice}
                     productsOn={productsOn}
                     canEditPromptPay={!isHelper}
                     members={members} courts={courts} snacks={snacks} 
