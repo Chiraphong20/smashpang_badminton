@@ -87,7 +87,7 @@ export const DEFAULT_MODE_CONFIG: ModeConfig = {
   buffetPrice: 150,
   splitCourtTotal: 0,
   splitShuttleTotal: 0,
-  trackScore: false,
+  trackScore: true,
 };
 
 export const MODE_LABELS: Record<SessionMode, string> = {

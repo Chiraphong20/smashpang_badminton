@@ -12,6 +12,7 @@ import {
   Lock,
   LogOut,
 } from 'lucide-react';
+import { cn } from '../lib/utils';
 import { ListingEditor } from './ListingEditor';
 import { HelpersManager } from './HelpersManager';
 import { SignupManager } from './SignupManager';
@@ -62,6 +63,22 @@ export function SettingsTab({
   sessionMode, setSessionMode, modeConfig, setModeConfig
 }: Props) {
   const [nameDraft, setNameDraft] = useState(groupName);
+  // หมวดตั้งค่า (จำหมวดล่าสุดในเครื่องนี้)
+  type Cat = 'general' | 'money' | 'queue' | 'listing' | 'system';
+  const allCats: { id: Cat; icon: string; label: string; desc: string; ownerOnly?: boolean }[] = [
+    { id: 'general', icon: '🏠', label: 'ก๊วนและบัญชี', desc: 'ชื่อก๊วน · แพ็กเกจ · ผู้ช่วย · ออกจากระบบ/เปลี่ยนก๊วน' },
+    { id: 'money', icon: '💰', label: 'การเงินและโหมด', desc: 'รูปแบบการจัดก๊วน · ค่าสนาม/ค่าลูก · ถามผลแพ้ชนะ · พร้อมเพย์รับเงิน' },
+    { id: 'queue', icon: '📝', label: 'ลงชื่อและคิว', desc: 'ลิงก์ลงชื่อล่วงหน้า · QR/ลิงก์ให้ผู้เล่นดูคิวสด' },
+    { id: 'listing', icon: '📣', label: 'หาสมาชิก', desc: 'ประกาศก๊วนบนหน้า "หาก๊วน" · โปสเตอร์ · วัน-เวลา · สถานที่', ownerOnly: true },
+    { id: 'system', icon: '🛠️', label: 'ระบบ', desc: 'ข้อมูลจำลอง · เริ่มวันใหม่ · ล้างข้อมูลทั้งหมด (ระวัง)', ownerOnly: true },
+  ];
+  const cats = allCats.filter(c => !c.ownerOnly || !isHelper);
+  const [cat, setCat] = useState<Cat>(() => {
+    try { const v = localStorage.getItem('sp_settings_cat') as Cat | null; if (v && allCats.some(c => c.id === v)) return v; } catch { /* ignore */ }
+    return 'general';
+  });
+  const curCat: Cat = cats.some(c => c.id === cat) ? cat : 'general';
+  const pickCat = (c: Cat) => { setCat(c); try { localStorage.setItem('sp_settings_cat', c); } catch { /* ignore */ } };
   const [nameMsg, setNameMsg] = useState('');
   const saveName = async () => {
     const n = nameDraft.trim();
@@ -83,6 +100,24 @@ export function SettingsTab({
 
 
 
+      {/* หมวดตั้งค่า: แท็บเลือกดูทีละกลุ่ม */}
+      <nav className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-background/95 backdrop-blur flex gap-2 overflow-x-auto no-scrollbar" aria-label="หมวดตั้งค่า">
+        {cats.map(c => (
+          <button key={c.id} onClick={() => pickCat(c.id)}
+            className={cn('shrink-0 px-4 py-2.5 rounded-2xl text-sm font-black border-2 transition-all whitespace-nowrap',
+              curCat === c.id ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-on-surface/60 border-on-surface/10 hover:border-primary/40')}>
+            <span className="mr-1.5">{c.icon}</span>{c.label}
+          </button>
+        ))}
+      </nav>
+      <div className="rounded-2xl bg-primary/5 px-4 py-3 -mt-3">
+        <p className="text-sm font-black text-primary">{cats.find(c => c.id === curCat)?.icon} {cats.find(c => c.id === curCat)?.label}</p>
+        <p className="text-xs font-semibold text-on-surface/55">{cats.find(c => c.id === curCat)?.desc}</p>
+      </div>
+
+      {/* 1) ก๊วนและบัญชี */}
+      {curCat === 'general' && (
+        <div className="space-y-8">
       {/* บัญชี: ออกจากระบบ / เปลี่ยนก๊วน */}
       <section className="bg-white rounded-[2rem] p-4 sm:p-5 shadow-sm border border-on-surface/5 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 min-w-0">
@@ -136,43 +171,14 @@ export function SettingsTab({
         </section>
       )}
 
-      {onChangePromptPay && !isHelper && (
-        <section className="bg-white rounded-[2rem] p-4 sm:p-6 shadow-sm border border-on-surface/5 space-y-4">
-          <div>
-            <h3 className="font-headline font-black text-lg flex items-center gap-2">📱 พร้อมเพย์รับเงิน</h3>
-            <p className="text-xs font-semibold text-on-surface/50">ตั้งครั้งเดียว แล้วหน้าเก็บเงินจะแสดง QR ที่ล็อกยอดให้ลูกค้าสแกนจ่ายได้เลย (QR สร้างในเครื่อง ไม่ส่งเลขของคุณให้บริการภายนอก)</p>
-          </div>
-          <div className="grid md:grid-cols-2 gap-3">
-            <label className="space-y-1">
-              <span className="text-xs font-bold text-on-surface/50">เบอร์มือถือ / เลขบัตรประชาชน / เลขผู้เสียภาษี</span>
-              <input value={promptPay?.id || ''} inputMode="numeric" maxLength={20} placeholder="เช่น 081-234-5678"
-                onChange={e => onChangePromptPay({ id: e.target.value.replace(/[^\d-]/g, ''), name: promptPay?.name || '' })}
-                className="w-full px-4 py-3 bg-background rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-primary/25" />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-bold text-on-surface/50">ชื่อบัญชีที่แสดงใต้ QR (ไม่บังคับ)</span>
-              <input value={promptPay?.name || ''} maxLength={40} placeholder="เช่น ก๊วนแบดวันอังคาร"
-                onChange={e => onChangePromptPay({ id: promptPay?.id || '', name: e.target.value })}
-                className="w-full px-4 py-3 bg-background rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-primary/25" />
-            </label>
-          </div>
-          {promptPay?.id && !parsePromptPayId(promptPay.id) && <p className="text-xs font-bold text-red-500">เลขไม่ถูกต้อง — ใช้เบอร์มือถือ 10 หลัก (ขึ้นต้น 06/08/09) หรือเลข 13 หลัก</p>}
-          {promptPay?.id && parsePromptPayId(promptPay.id) && (
-            <div className="flex flex-wrap items-center gap-4">
-              <PromptPayQR id={promptPay.id} name={promptPay.name} size={150} />
-              <p className="text-xs font-semibold text-on-surface/50 max-w-xs">ตัวอย่าง QR (ยังไม่ล็อกยอด) · ลองสแกนด้วยแอปธนาคารเพื่อตรวจว่าชื่อบัญชีตรงกับของคุณ · ตอนเก็บเงินจะล็อกยอดต่อคนให้อัตโนมัติ</p>
-            </div>
-          )}
-          {promptPay?.id && <button onClick={() => onChangePromptPay({ id: '', name: '' })} className="text-xs font-bold text-on-surface/40 hover:text-red-500">ล้างข้อมูลพร้อมเพย์</button>}
-        </section>
-      )}
-
-      {onImportSignups && <SignupManager maxPlayers={plan?.plan.maxPlayers} onImport={onImportSignups} />}
-
       {!isHelper && <HelpersManager />}
 
-      {!isHelper && <ListingEditor />}
+        </div>
+      )}
 
+      {/* 2) การเงินและโหมด */}
+      {curCat === 'money' && (
+        <div className="space-y-8">
       {/* Session Mode */}
       <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-5">
         <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40">รูปแบบการจัดก๊วน</h3>
@@ -251,6 +257,78 @@ export function SettingsTab({
         </section>
       </div>
 
+      {onChangePromptPay && !isHelper && (
+        <section className="bg-white rounded-[2rem] p-4 sm:p-6 shadow-sm border border-on-surface/5 space-y-4">
+          <div>
+            <h3 className="font-headline font-black text-lg flex items-center gap-2">📱 พร้อมเพย์รับเงิน</h3>
+            <p className="text-xs font-semibold text-on-surface/50">ตั้งครั้งเดียว แล้วหน้าเก็บเงินจะแสดง QR ที่ล็อกยอดให้ลูกค้าสแกนจ่ายได้เลย (QR สร้างในเครื่อง ไม่ส่งเลขของคุณให้บริการภายนอก)</p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-3">
+            <label className="space-y-1">
+              <span className="text-xs font-bold text-on-surface/50">เบอร์มือถือ / เลขบัตรประชาชน / เลขผู้เสียภาษี</span>
+              <input value={promptPay?.id || ''} inputMode="numeric" maxLength={20} placeholder="เช่น 081-234-5678"
+                onChange={e => onChangePromptPay({ id: e.target.value.replace(/[^\d-]/g, ''), name: promptPay?.name || '' })}
+                className="w-full px-4 py-3 bg-background rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-primary/25" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-bold text-on-surface/50">ชื่อบัญชีที่แสดงใต้ QR (ไม่บังคับ)</span>
+              <input value={promptPay?.name || ''} maxLength={40} placeholder="เช่น ก๊วนแบดวันอังคาร"
+                onChange={e => onChangePromptPay({ id: promptPay?.id || '', name: e.target.value })}
+                className="w-full px-4 py-3 bg-background rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-primary/25" />
+            </label>
+          </div>
+          {promptPay?.id && !parsePromptPayId(promptPay.id) && <p className="text-xs font-bold text-red-500">เลขไม่ถูกต้อง — ใช้เบอร์มือถือ 10 หลัก (ขึ้นต้น 06/08/09) หรือเลข 13 หลัก</p>}
+          {promptPay?.id && parsePromptPayId(promptPay.id) && (
+            <div className="flex flex-wrap items-center gap-4">
+              <PromptPayQR id={promptPay.id} name={promptPay.name} size={150} />
+              <p className="text-xs font-semibold text-on-surface/50 max-w-xs">ตัวอย่าง QR (ยังไม่ล็อกยอด) · ลองสแกนด้วยแอปธนาคารเพื่อตรวจว่าชื่อบัญชีตรงกับของคุณ · ตอนเก็บเงินจะล็อกยอดต่อคนให้อัตโนมัติ</p>
+            </div>
+          )}
+          {promptPay?.id && <button onClick={() => onChangePromptPay({ id: '', name: '' })} className="text-xs font-bold text-on-surface/40 hover:text-red-500">ล้างข้อมูลพร้อมเพย์</button>}
+        </section>
+      )}
+
+        </div>
+      )}
+
+      {/* 3) ลงชื่อและคิว */}
+      {curCat === 'queue' && (
+        <div className="space-y-8">
+      {onImportSignups && <SignupManager maxPlayers={plan?.plan.maxPlayers} onImport={onImportSignups} />}
+
+      {/* QR Code Section */}
+      <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-secondary/10 rounded-2xl flex items-center justify-center">
+            <QrCode size={20} className="text-secondary" />
+          </div>
+          <div>
+            <h3 className="font-bold text-base text-on-surface">QR Code — หน้าคิวสำหรับลูกค้า</h3>
+            <p className="text-xs text-on-surface/45 font-semibold">ลูกค้าสแกนเพื่อดูคิวรอและสนามที่กำลังตีอยู่</p>
+          </div>
+        </div>
+
+        <ShareLink url={queueUrl} title={groupName || 'คิวแบดมินตัน'} caption="สแกนดูคิวและสนาม" filename="queue-qrcode.png" size={190} />
+
+        <div className="mt-5 space-y-1.5 text-sm text-on-surface/50">
+          <p className="font-semibold">✅ แสดงทุกสนาม คิวถัดไป และรายชื่อคนที่รอลงสนาม · ค้นหาชื่อตัวเองได้</p>
+          <p className="font-semibold">✅ อัปเดตอัตโนมัติทุก 20 วินาที · ไม่ต้องล็อกอิน ดูได้ทุกคน</p>
+        </div>
+      </section>
+        </div>
+      )}
+
+      {/* 4) หาสมาชิก */}
+      {curCat === 'listing' && !isHelper && (
+        <div className="space-y-8">
+      {!isHelper && <ListingEditor />}
+
+        </div>
+      )}
+
+      {/* 5) ระบบ */}
+      {curCat === 'system' && !isHelper && (
+        <div className="space-y-8">
       {/* System Maintenance Section */}
       {!isHelper && <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
         <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40">การจัดการระบบ</h3>
@@ -282,25 +360,8 @@ export function SettingsTab({
         </div>
       </section>}
 
-      {/* QR Code Section */}
-      <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-secondary/10 rounded-2xl flex items-center justify-center">
-            <QrCode size={20} className="text-secondary" />
-          </div>
-          <div>
-            <h3 className="font-bold text-base text-on-surface">QR Code — หน้าคิวสำหรับลูกค้า</h3>
-            <p className="text-xs text-on-surface/45 font-semibold">ลูกค้าสแกนเพื่อดูคิวรอและสนามที่กำลังตีอยู่</p>
-          </div>
         </div>
-
-        <ShareLink url={queueUrl} title={groupName || 'คิวแบดมินตัน'} caption="สแกนดูคิวและสนาม" filename="queue-qrcode.png" size={190} />
-
-        <div className="mt-5 space-y-1.5 text-sm text-on-surface/50">
-          <p className="font-semibold">✅ แสดงทุกสนาม คิวถัดไป และรายชื่อคนที่รอลงสนาม · ค้นหาชื่อตัวเองได้</p>
-          <p className="font-semibold">✅ อัปเดตอัตโนมัติทุก 20 วินาที · ไม่ต้องล็อกอิน ดูได้ทุกคน</p>
-        </div>
-      </section>
+      )}
     </div>
   );
 }
