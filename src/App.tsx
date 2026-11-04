@@ -583,7 +583,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     return `${base.trim()} ${n}`;
   };
 
-  const addMember = (nameIn: string, rank: Rank) => {
+  // keepOpen = ใส่ชื่อต่อเนื่องหลายคน (ไม่ปิดหน้าต่าง) · คืน true เมื่อเพิ่มสำเร็จ
+  const addMember = (nameIn: string, rank: Rank, keepOpen = false): boolean => {
     let name = nameIn;
     const dup = members.find(m => m.name.toLowerCase() === name.toLowerCase());
     // มีชื่อนี้อยู่ในก๊วนวันนี้แล้ว (รอคิว/กำลังเล่น/ตีไปแล้ว) → ถามว่าคนเดียวกันหรือคนละคน แทนที่จะไปล้างข้อมูลของคนเดิม
@@ -594,7 +595,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
       name = next;
     }
     const existing = members.find(m => m.name.toLowerCase() === name.toLowerCase());
-    if (!(existing && isTodayPlayer(existing)) && !canAddToday(1)) return;
+    if (!(existing && isTodayPlayer(existing)) && !canAddToday(1)) return false;
 
     // Auto-update rank memory when a member is added manually
     setRankMemory(prev => ({ ...prev, [name]: rank }));
@@ -604,7 +605,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     if (existing) {
       if (existing.status === 'waiting') {
         alert('ผู้เล่นนี้อยู่ในคิวแล้ว!');
-        return;
+        return false;
       }
       setMembers(prev => prev.map(m => m.name.toLowerCase() === name.toLowerCase()
         ? { 
@@ -629,7 +630,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     } else {
       setMembers(prev => [...prev, mkMember(`m-${Date.now()}`, name, rank, 0, prev.length * 1000)]);
     }
-    setShowAddMember(false);
+    if (!keepOpen) setShowAddMember(false);
+    return true;
   };
 
   const checkInMember = (memberId: string) => {

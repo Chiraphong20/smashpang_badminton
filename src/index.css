@@ -100,3 +100,8 @@
   }
 }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* เปิดหน้าต่างป๊อปอัปอยู่ → หน้าจอด้านหลังห้ามเลื่อน (class ถูกใส่/เอาออกโดย src/lib/scrollLock.ts) */
+html { scrollbar-gutter: stable; }
+html.modal-open, html.modal-open body { overflow: hidden !important; overscroll-behavior: none; }
+html.modal-open .overflow-y-auto, html.modal-open .overflow-auto { overscroll-behavior: contain; }

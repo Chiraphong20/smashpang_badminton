@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -8,7 +8,8 @@ import { useModalHotkeys } from '../hooks/useModalHotkeys';
 interface Props {
   open: boolean;
   onClose: () => void;
-  onAdd: (name: string, rank: Rank) => void;
+  /** keepOpen = ใส่ชื่อต่อเนื่อง ไม่ปิดหน้าต่าง · คืน true ถ้าเพิ่มสำเร็จ */
+  onAdd: (name: string, rank: Rank, keepOpen?: boolean) => boolean | void;
   existingNames: string[];
   rankMemory?: Record<string, Rank>;
 }
@@ -16,22 +17,42 @@ interface Props {
 export function AddMemberModal({ open, onClose, onAdd, existingNames, rankMemory = {} }: Props) {
   const [name, setName] = useState('');
   const [rank, setRank] = useState<Rank>('P');
+  const [added, setAdded] = useState<string[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Enter already submits natively via the focused text input; add Esc to close.
   useModalHotkeys({ onClose, enabled: open });
+  React.useEffect(() => { if (!open) setAdded([]); }, [open]);
+
+  const validName = () => {
+    const n = name.trim();
+    if (!n) return null;
+    if (existingNames.some(x => x.toLowerCase() === n.toLowerCase()) || added.some(x => x.toLowerCase() === n.toLowerCase())) {
+      alert(`ชื่อ "${n}" มีอยู่ในรายการแล้วครับ!`);
+      return null;
+    }
+    return n;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    
-    if (existingNames.some(n => n.toLowerCase() === name.trim().toLowerCase())) {
-      alert(`ชื่อ "${name.trim()}" มีอยู่ในรายการแล้วครับ!`);
-      return;
-    }
-
-    onAdd(name.trim(), rank);
+    const n = validName();
+    if (!n) return;
+    onAdd(n, rank);
     setName('');
     setRank('P');
+    setAdded([]);
+  };
+
+  // เพิ่มคนนี้แล้วเปิดหน้าต่างค้างไว้ ใส่ชื่อคนถัดไปได้เลย (ไม่ต้องเปิดใหม่ทีละคน)
+  const addAndContinue = () => {
+    const n = validName();
+    if (!n) return;
+    if (onAdd(n, rank, true) === false) return;
+    setAdded(prev => [...prev, n]);
+    setName('');
+    setRank('P');
+    inputRef.current?.focus();
   };
 
   return (
@@ -51,6 +72,7 @@ export function AddMemberModal({ open, onClose, onAdd, existingNames, rankMemory
               <div className="space-y-2">
                 <label className="text-xs font-bold text-on-surface/50 ml-2">ชื่อผู้เล่น</label>
                 <input
+                  ref={inputRef}
                   autoFocus required
                   value={name}
                   onChange={e => {
@@ -89,10 +111,23 @@ export function AddMemberModal({ open, onClose, onAdd, existingNames, rankMemory
 
               </div>
 
-              <button type="submit"
-                className="w-full bg-primary text-white py-5 rounded-2xl font-headline font-black uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all mt-2">
-                เช็คอินผู้เล่น
-              </button>
+              {added.length > 0 && (
+                <div className="rounded-2xl bg-primary/5 px-4 py-3">
+                  <p className="text-xs font-black text-primary mb-1.5">เพิ่มแล้ว {added.length} คน</p>
+                  <div className="flex flex-wrap gap-1.5">{added.map(n => <span key={n} className="px-2.5 py-1 rounded-full bg-white text-sm font-bold text-on-surface/70 border border-primary/10">{n} ✓</span>)}</div>
+                </div>
+              )}
+
+              <div className="space-y-2 mt-2">
+                <button type="button" onClick={addAndContinue} disabled={!name.trim()}
+                  className="w-full bg-white text-primary border-2 border-primary/30 py-3.5 rounded-2xl font-black text-sm hover:bg-primary/5 active:scale-95 transition-all disabled:opacity-40">
+                  + เพิ่มคนนี้ แล้วใส่คนต่อไป
+                </button>
+                <button type="submit"
+                  className="w-full bg-primary text-white py-5 rounded-2xl font-headline font-black uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all">
+                  {added.length > 0 ? 'เช็คอินคนนี้ แล้วเสร็จ' : 'เช็คอินผู้เล่น'}
+                </button>
+              </div>
             </form>
           </motion.div>
         </div>
