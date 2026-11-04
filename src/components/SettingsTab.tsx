@@ -93,7 +93,7 @@ export function SettingsTab({
           <Settings size={24} className="text-primary" />
         </div>
         <div>
-          <h2 className="font-headline font-black text-2xl text-on-surface">ตั้งค่าระบบ</h2>
+          <h2 className="font-headline font-black text-2xl text-on-surface">ตั้งค่า</h2>
           <p className="text-xs text-on-surface/40 font-bold uppercase tracking-widest">System Configuration & Maintenance</p>
         </div>
       </div>
