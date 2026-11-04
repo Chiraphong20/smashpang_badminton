@@ -986,9 +986,31 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
       // คนที่ได้ตี: ยอดรวมต้องเท่ากับยอดหารเท่า · คนที่ไม่ได้ตีแล้ว (เช่นยกเลิกเกม): คืนยอดที่เคยเรียกเก็บ
       return { b, dCourt: isPlaying ? courtShare - b.court : -old.court, dShuttle: isPlaying ? shuttleShare - b.shuttle : -old.shuttle };
     };
-    const changed = members.filter(m => { const d = deltaOf(m); return d.dCourt || d.dShuttle || (m.status === 'paid' && m.balance > 0); });
+    // คนที่จ่ายไปแล้วบางส่วนตอนยอดยังเป็นยอดเก่า (เช่นจ่าย ฿7 ตอนที่ยอดหารยังเป็น ฿7) แล้วหลังคำนวณใหม่ยังมียอดค้าง
+    // ถามว่าจะให้ค้างเต็ม (ไม่หักส่วนที่จ่ายแล้ว) หรือหักส่วนที่จ่ายแล้วออก
+    const prepaidOf = (m: Member) => { const bb = baseOf(m); return Math.max(0, bb.court + bb.shuttle - (m.courtBalance + m.shuttleBalance)); };
+    const partial = playing.filter(m => { const d = deltaOf(m); return prepaidOf(m) > 0 && (m.courtBalance + m.shuttleBalance) + d.dCourt + d.dShuttle > 0; });
+    const fullIds = new Set<string>();
+    if (partial.length > 0 && confirm(`มี ${partial.length} คนที่จ่ายไปแล้วบางส่วน (${partial.slice(0, 5).map(m => `${m.name} จ่ายแล้ว ฿${prepaidOf(m)}`).join(', ')}${partial.length > 5 ? ' …' : ''})
+
+ตกลง = ให้ค้างเต็ม ฿${courtShare + shuttleShare} (ไม่หักส่วนที่จ่ายแล้ว)
+ยกเลิก = หักส่วนที่จ่ายแล้วออก ค้างเฉพาะส่วนต่าง`)) partial.forEach(m => fullIds.add(m.id));
+    const changed = members.filter(m => { const d = deltaOf(m); return d.dCourt || d.dShuttle || fullIds.has(m.id) || (m.status === 'paid' && m.balance > 0); });
     setMembers(prev => prev.map(m => {
       const { b, dCourt, dShuttle } = deltaOf(m);
+      if (fullIds.has(m.id)) {
+        const dc = courtShare - m.courtBalance, ds = shuttleShare - m.shuttleBalance;
+        return {
+          ...m,
+          status: m.status === 'paid' ? 'resting' as const : m.status,
+          courtBalance: courtShare,
+          shuttleBalance: shuttleShare,
+          balance: Math.max(0, m.balance + dc + ds),
+          totalCourt: courtShare,
+          totalShuttle: shuttleShare,
+          paidCourtFee: true,
+        };
+      }
       // คนที่ชำระแล้วแต่ยอดหารเท่าใหม่ทำให้มียอดค้าง (balance > 0) ต้องกลับมาเป็น "ยังไม่ชำระ" ไม่งั้นจะโชว์ว่าชำระแล้วทั้งที่ยังค้าง
       const reopen = m.status === 'paid' && Math.max(0, m.balance + dCourt + dShuttle) > 0;
       if (!dCourt && !dShuttle) return m.status === 'paid' && m.balance > 0 ? { ...m, status: 'resting' as const } : m;
