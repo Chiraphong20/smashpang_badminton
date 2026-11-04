@@ -56,6 +56,9 @@ function parseMasterList(text: string): { name: string; rank: Rank }[] {
   return results;
 }
 
+// มือถือ/แท็บเล็ต (จอสัมผัส) ไม่มีปุ่ม Shift ให้ขึ้นบรรทัดใหม่ → Enter ต้องขึ้นบรรทัดใหม่เสมอ ใช้ปุ่ม "วิเคราะห์รายชื่อ" แทน
+const isTouch = () => typeof window !== 'undefined' && (!!window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 640);
+
 export function ImportMembersModal({ open, onClose, onImport, rankMemory, existingNames, existingRanks = {}, capacity, isSessionMode, todayGames = {}, initialText }: Props) {
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<ParsedMember[]>([]);
@@ -252,7 +255,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
                 onKeyDown={e => {
                   // Enter วิเคราะห์รายชื่อทันที, Shift+Enter ขึ้นบรรทัดใหม่ (สำหรับแก้ไข/พิมพ์เพิ่มเอง)
                   // e.repeat กัน auto-repeat จากการกด Enter ค้าง (ดูคอมเมนต์ที่ window listener ด้านบน)
-                  if (e.key === 'Enter' && !e.shiftKey && !e.repeat) {
+                  if (e.key === 'Enter' && !e.shiftKey && !e.repeat && !isTouch()) {
                     e.preventDefault();
                     if (text.trim()) handleParse();
                   }
@@ -262,7 +265,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
                 autoFocus
               />
               <p className="text-[11px] text-on-surface/30 font-semibold px-1">
-                กด Enter เพื่อวิเคราะห์รายชื่อ • Shift+Enter เพื่อขึ้นบรรทัดใหม่
+                {isTouch() ? 'Enter = ขึ้นบรรทัดใหม่ · เสร็จแล้วกด “วิเคราะห์รายชื่อ”' : 'กด Enter เพื่อวิเคราะห์รายชื่อ • Shift+Enter เพื่อขึ้นบรรทัดใหม่'}
               </p>
             </>
           ) : (

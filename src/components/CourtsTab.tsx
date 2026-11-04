@@ -183,8 +183,10 @@ export function PlayerPicker({ members, currentPlayerId, onSelect, onClose, posi
 // ── Player Modal Picker (กลางจอ · เลือกได้หลายคนทีเดียว) ──────────────────────────
 // ใช้ตอนเอาคนลงคอร์ด: แตะช่องว่างแล้วเลือกชื่อหลายคนในหน้าต่างเดียว (สูงสุดเท่าช่องว่าง) แล้วกดตกลง
 // ไม่เด้งคีย์บอร์ดบนมือถือเอง (จอไม่ขยับ) — แตะช่องค้นหาเองเมื่ออยากพิมพ์
-export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = null, max, onConfirm, onRemove, onClose }: {
+export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = null, max, slots, onConfirm, onRemove, onClose }: {
   members: Member[];
+  /** ผู้เล่นปัจจุบันในช่อง 1-4 ของคอร์ด (ช่อง 1-2 = ทีม A, 3-4 = ทีม B) ใช้โชว์ว่าคนที่ติ๊กจะอยู่ทีมไหนกับใคร */
+  slots?: (string | null)[];
   profiles?: Record<string, PlayerProfile>;
   /** คนที่อยู่ในช่องนี้อยู่แล้ว (โหมดเปลี่ยนคน: เลือกทีละคน) */
   currentPlayerId?: string | null;
@@ -215,6 +217,12 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
   };
   const confirm = () => { if (picked.length > 0) onConfirm(picked); };
   const full = !single && picked.length >= max;
+  // คนที่ติ๊กจะถูกใส่ช่องว่างตามลำดับ → คำนวณทีมสุดท้ายล่วงหน้า
+  const empties = (slots ?? []).map((p, i) => (p === null ? i : -1)).filter(i => i >= 0);
+  const finalSlots: (string | null)[] = slots ? [...slots] : [];
+  if (!single) picked.forEach((id, k) => { if (empties[k] !== undefined) finalSlots[empties[k]] = id; });
+  const nameOf = (id: string | null) => (id ? members.find(m => m.id === id)?.name ?? '' : '');
+  const teamOfPicked = (idx: number): 'A' | 'B' | null => (slots && empties[idx] !== undefined ? (empties[idx] < 2 ? 'A' : 'B') : null);
 
   return createPortal(
     <div className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-4" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
@@ -228,6 +236,23 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
           </div>
           <button onClick={onClose} className="p-2 -mr-2 rounded-full hover:bg-background" aria-label="ปิด"><X size={20} /></button>
         </div>
+        {!single && slots && (
+          <div className="px-4 pt-3 shrink-0 grid grid-cols-[1fr_auto_1fr] gap-2 items-stretch">
+            {([['A', [0, 1], 'bg-blue-50 border-blue-200 text-blue-700'], ['B', [2, 3], 'bg-orange-50 border-orange-200 text-orange-600']] as const).map(([t, idxs, cls], ti) => (
+              <React.Fragment key={t}>
+                {ti === 1 && <span className="self-center text-[11px] font-black text-on-surface/30">VS</span>}
+                <div className={cn('rounded-xl border px-2.5 py-1.5', cls)}>
+                  <p className="text-[11px] font-black leading-none mb-1">ทีม {t}</p>
+                  {idxs.map(i => {
+                    const id = finalSlots[i];
+                    const isNew = !!id && picked.includes(id);
+                    return <p key={i} className={cn('text-sm font-bold leading-snug truncate', !id && 'text-on-surface/25 font-semibold', isNew && 'underline decoration-2 underline-offset-2')}>{id ? nameOf(id) : 'ว่าง'}</p>;
+                  })}
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
         <div className="px-4 pt-3 shrink-0">
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/30" />
@@ -263,8 +288,9 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
                   <p className="text-xs text-on-surface/40">{RANK_LEVEL_LABELS[m.rank]}{RANK_LEVEL_LABELS[m.rank] ? ' · ' : ''}{m.gamesPlayed} เกม</p>
                 </div>
                 {!single && (
-                  <span className={cn('w-7 h-7 rounded-full flex items-center justify-center text-sm font-black shrink-0 border-2', on ? 'bg-primary border-primary text-white' : 'border-on-surface/15 text-transparent')}>
-                    {on ? idx + 1 : '·'}
+                  <span className={cn('h-7 min-w-7 px-1.5 rounded-full flex items-center justify-center text-xs font-black shrink-0 border-2',
+                    !on ? 'border-on-surface/15 text-transparent w-7' : teamOfPicked(idx) === 'B' ? 'bg-orange-500 border-orange-500 text-white' : teamOfPicked(idx) === 'A' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-primary border-primary text-white')}>
+                    {on ? (teamOfPicked(idx) ? `ทีม ${teamOfPicked(idx)}` : idx + 1) : '·'}
                   </span>
                 )}
               </button>
@@ -290,7 +316,7 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
 export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locked, openRequest, profiles = {}, pickAll = false, sheet = false, multi }: {
   key?: number;
   /** เลือกหลายคนในหน้าต่างกลางจอ (หน้าจัดคอร์ด): emptySlots = ช่องว่างที่เหลือ · onPickMany = ใส่ชื่อทั้งหมดลงช่องว่างตามลำดับ */
-  multi?: { emptySlots: number; onPickMany: (ids: string[]) => void };
+  multi?: { emptySlots: number; slots?: (string | null)[]; onPickMany: (ids: string[]) => void };
   pickAll?: boolean;
   sheet?: boolean;
   profiles?: Record<string, PlayerProfile>;
@@ -410,6 +436,7 @@ export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect
             profiles={profiles}
             currentPlayerId={playerId}
             max={player ? 1 : Math.max(1, multi.emptySlots)}
+            slots={multi.slots}
             onConfirm={ids => { if (player) onSelect(ids[0]); else multi.onPickMany(ids); setOpen(false); }}
             onRemove={() => onSelect(null)}
             onClose={() => setOpen(false)}
@@ -731,6 +758,7 @@ export function CourtsTab({
   // เลือกหลายคนทีเดียว: ใส่ชื่อลงช่องว่างของคอร์ดตามลำดับ (ผ่านการถามคิวค้างเหมือนเดิม)
   const multiPick = selected ? {
     emptySlots: selected.players.slice(0, 4).filter(p => p === null).length,
+    slots: selected.players.slice(0, 4),
     onPickMany: (ids: string[]) => guardQueue(() => {
       const empties = selected.players.slice(0, 4).map((p, i) => (p === null ? i : -1)).filter(i => i >= 0);
       ids.slice(0, empties.length).forEach((id, k) => onAddPlayer(selected.id, empties[k], id));
