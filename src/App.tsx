@@ -960,31 +960,31 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     const courtShare = Math.ceil(modeConfig.splitCourtTotal / playing.length);
     const shuttleShare = Math.ceil(modeConfig.splitShuttleTotal / playing.length);
     const applied: Record<string, { court: number; shuttle: number }> = {};
-    // ยอดค่าสนาม/ค่าลูกที่ค้างอยู่เกินจากยอดหารเท่าที่เคยเรียกเก็บ = ถูกคิดแบบนับเกม/บุฟเฟต์ไว้ก่อนเปลี่ยนโหมด
-    // ต้องเอาออกแล้วใช้ยอดหารเท่าแทน ไม่งั้นบางคนจะจ่ายซ้ำซ้อนและยอดไม่เท่ากัน
-    const leftover = (m: Member) => {
-      const old = prevApplied[m.id] || { court: 0, shuttle: 0 };
-      return { court: m.gamesPlayed > 0 ? Math.max(0, m.courtBalance - old.court) : 0, shuttle: m.gamesPlayed > 0 ? Math.max(0, m.shuttleBalance - old.shuttle) : 0 };
-    };
-    const replaced = members.filter(m => { const l = leftover(m); return l.court + l.shuttle > 0; });
-    if (replaced.length > 0 && !confirm(`มี ${replaced.length} คนที่ถูกคิดค่าสนาม/ค่าลูกแบบเดิมไว้ก่อนเปลี่ยนมาโหมดหารเท่า\n(${replaced.slice(0, 5).map(m => m.name).join(', ')}${replaced.length > 5 ? ' …' : ''})\n\nจะเอายอดเดิมของค่าสนามและค่าลูกออก แล้วใช้ยอดหารเท่าแทน เพื่อให้ทุกคนจ่ายเท่ากัน ตกลงไหม?`)) return;
+    playing.forEach(m => { applied[m.id] = { court: courtShare, shuttle: shuttleShare }; });
+    // ยอด "ที่ถูกคิดไปแล้วทั้งหมด" ของแต่ละคน (รวมที่จ่ายแล้ว) — ใช้ค่านี้เป็นฐาน ไม่พึ่งแค่บันทึกการเรียกเก็บครั้งก่อน
+    // เพราะถ้าบางคนมียอดคิดมาจากโหมดอื่น/เรียกเก็บครั้งก่อนไม่ครบ ยอดจะไม่เท่ากัน ต้องปรับทุกคนให้เท่ากับยอดหารเท่า
+    const baseOf = (m: Member) => ({ court: m.totalCourt ?? m.courtBalance, shuttle: m.totalShuttle ?? m.shuttleBalance });
+    const mismatched = playing.filter(m => { const b = baseOf(m); const old = prevApplied[m.id] || { court: 0, shuttle: 0 }; return (b.court !== old.court || b.shuttle !== old.shuttle) && (b.court + b.shuttle > 0); });
+    if (mismatched.length > 0 && !confirm(`มี ${mismatched.length} คนที่ยอดค่าสนาม/ค่าลูกไม่ตรงกับยอดหารเท่าที่เรียกเก็บไว้ (เช่นถูกคิดแบบนับเกมไว้ก่อนเปลี่ยนโหมด)
+(${mismatched.slice(0, 5).map(m => m.name).join(', ')}${mismatched.length > 5 ? ' …' : ''})
+
+จะปรับให้ทุกคนมียอดเท่ากับยอดหารเท่า ฿${courtShare + shuttleShare}/คน (ค่าสนาม ฿${courtShare} + ค่าลูก ฿${shuttleShare}) ตกลงไหม?
+คนที่จ่ายไปแล้วจะไม่ถูกแตะส่วนที่จ่าย ถ้าจ่ายไม่ครบจะค้างเฉพาะส่วนต่าง`)) return;
     setMembers(prev => prev.map(m => {
       const old = prevApplied[m.id] || { court: 0, shuttle: 0 };
       const isPlaying = m.gamesPlayed > 0;
-      const court = isPlaying ? courtShare : 0;
-      const shuttle = isPlaying ? shuttleShare : 0;
-      if (isPlaying) applied[m.id] = { court, shuttle };
-      const lo = leftover(m);
-      const dCourt = court - old.court - lo.court;
-      const dShuttle = shuttle - old.shuttle - lo.shuttle;
+      const b = baseOf(m);
+      // คนที่ได้ตี: ยอดรวมต้องเท่ากับยอดหารเท่า · คนที่ไม่ได้ตีแล้ว (เช่นยกเลิกเกม): คืนยอดที่เคยเรียกเก็บ
+      const dCourt = isPlaying ? courtShare - b.court : -old.court;
+      const dShuttle = isPlaying ? shuttleShare - b.shuttle : -old.shuttle;
       if (!dCourt && !dShuttle) return m;
       return {
         ...m,
         courtBalance: Math.max(0, m.courtBalance + dCourt),
         shuttleBalance: Math.max(0, m.shuttleBalance + dShuttle),
         balance: Math.max(0, m.balance + dCourt + dShuttle),
-        totalCourt: Math.max(0, (m.totalCourt || 0) + dCourt),
-        totalShuttle: Math.max(0, (m.totalShuttle || 0) + dShuttle),
+        totalCourt: Math.max(0, b.court + dCourt),
+        totalShuttle: Math.max(0, b.shuttle + dShuttle),
         paidCourtFee: true,
       };
     }));
