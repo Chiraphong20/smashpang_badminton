@@ -142,7 +142,6 @@ function EditGameModal({ game, members, profiles = {}, onSave, onClose }: { game
 
 export function LogsTab({ gameHistory, sessionHistory, members, paymentHistory, onViewSession, onActiveTab, onUpdateGame, onPullSession, profiles = {} }: Props) {
   const [editingGame, setEditingGame] = React.useState<GameRecord | null>(null);
-  const [expandedPayment, setExpandedPayment] = React.useState<string | null>(null);
   const [showSessionDropdown, setShowSessionDropdown] = React.useState(false);
   const [allSessionDates, setAllSessionDates] = React.useState<SessionDate[]>([]);
   const [loadingSession, setLoadingSession] = React.useState<string | null>(null);
@@ -159,7 +158,6 @@ export function LogsTab({ gameHistory, sessionHistory, members, paymentHistory, 
   const searchDebounce = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const logs = [...gameHistory].sort((a, b) => b.playedAt - a.playedAt);
-  const payments = [...paymentHistory].sort((a, b) => b.timestamp - a.timestamp);
 
   // Fetch all session dates from server on mount
   React.useEffect(() => {
@@ -491,74 +489,6 @@ export function LogsTab({ gameHistory, sessionHistory, members, paymentHistory, 
         <div className="h-px bg-on-surface/5 flex-1" />
       </div>
 
-      {/* Payment History Section */}
-      {payments.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-1">
-            <Banknote size={14} className="text-green-600" />
-            <h3 className="text-xs font-black uppercase text-green-700/60 tracking-widest">บันทึกการชำระเงิน ({payments.length} รายการ)</h3>
-            <div className="h-px bg-on-surface/5 flex-1" />
-          </div>
-          <div className="space-y-2">
-            {payments.map(p => {
-              const snackItems = p.details?.snackHistory || [];
-              const isExpanded = expandedPayment === p.id;
-              return (
-                <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-on-surface/5 overflow-hidden">
-                  <button
-                    onClick={() => setExpandedPayment(isExpanded ? null : p.id)}
-                    className="w-full flex items-center gap-4 px-5 py-4 hover:bg-green-50/50 transition-colors text-left"
-                  >
-                    <div className="w-9 h-9 bg-green-500/10 rounded-xl flex items-center justify-center shrink-0">
-                      <Banknote size={16} className="text-green-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-sm text-on-surface">{p.memberName}</p>
-                      <p className="text-xs font-semibold text-on-surface/45">{format(p.timestamp, 'HH:mm น.')} • {p.note}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <p className="font-headline font-black text-xl text-green-600">฿{p.amount.toLocaleString()}</p>
-                      {snackItems.length > 0 && (
-                        isExpanded ? <ChevronUp size={16} className="text-on-surface/30" /> : <ChevronDown size={16} className="text-on-surface/30" />
-                      )}
-                    </div>
-                  </button>
-                  {isExpanded && snackItems.length > 0 && (
-                    <div className="px-5 pb-4 space-y-1.5 border-t border-on-surface/5 pt-3 bg-on-surface/[0.015]">
-                      <p className="text-xs font-bold text-on-surface/40 mb-2 flex items-center gap-1"><ShoppingCart size={12} /> รายการสินค้า</p>
-                      {snackItems.map((s, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs">
-                          <span className="text-on-surface/60 font-bold flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-tertiary/40 shrink-0" />
-                            {s.name}
-                          </span>
-                          <span className="font-black text-tertiary">฿{s.price}</span>
-                        </div>
-                      ))}
-                      <div className="flex items-center justify-between text-xs pt-2 border-t border-on-surface/5 mt-2">
-                        <span className="font-bold text-on-surface/45 text-xs">รวมสินค้า</span>
-                        <span className="font-black text-tertiary">฿{snackItems.reduce((a, s) => a + s.price, 0)}</span>
-                      </div>
-                      {(p.details?.courtBalance ?? 0) > 0 && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-on-surface/45 text-xs">ค่าสนาม</span>
-                          <span className="font-black text-primary">฿{p.details!.courtBalance}</span>
-                        </div>
-                      )}
-                      {(p.details?.shuttleBalance ?? 0) > 0 && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-on-surface/45 text-xs">ค่าลูกแบด</span>
-                          <span className="font-black text-secondary">฿{p.details!.shuttleBalance}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="flex items-center gap-2 px-1 mt-2">
         <h3 className="text-xs font-black uppercase text-secondary/60 tracking-widest">บันทึกการตีวันนี้</h3>
