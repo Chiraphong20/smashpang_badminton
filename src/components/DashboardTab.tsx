@@ -887,7 +887,7 @@ export function DashboardTab({
                   </button>
                   <p className="text-xs font-semibold text-on-surface/55 flex-1 min-w-[12rem]">
                     {splitPlayers === 0 ? 'หารจากคนที่ได้ตีอย่างน้อย 1 เกม — ตอนนี้ยังไม่มีใครตี'
-                      : `ค่าสนาม ฿${courtShare} + ค่าลูก ฿${shuttleShare} ต่อคน (ปัดขึ้น)${applied ? ' · เรียกเก็บแล้ว กดซ้ำได้ถ้ามีคนมาเพิ่ม' : ' · กรอกยอดแล้วกดเรียกเก็บเมื่อจบก๊วน'}`}
+                      : `ค่าสนาม ฿${courtShare} + ค่าลูก ฿${shuttleShare} ต่อคน (ปัดขึ้น) · เก็บรวม ฿${(share * splitPlayers).toLocaleString()} จากยอดรวม ฿${(courtTotal + shuttleTotal).toLocaleString()}${share * splitPlayers > courtTotal + shuttleTotal ? ` (เกิน ฿${share * splitPlayers - courtTotal - shuttleTotal} เพราะปัดขึ้นเป็นเลขเต็มต่อคน)` : ''}${applied ? ' · เรียกเก็บแล้ว กดซ้ำได้ถ้ามีคนมาเพิ่ม' : ' · กรอกยอดแล้วกดเรียกเก็บเมื่อจบก๊วน'}`}
                   </p>
                 </div>
               </div>
