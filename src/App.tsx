@@ -970,13 +970,16 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
 
 จะปรับให้ทุกคนมียอดเท่ากับยอดหารเท่า ฿${courtShare + shuttleShare}/คน (ค่าสนาม ฿${courtShare} + ค่าลูก ฿${shuttleShare}) ตกลงไหม?
 คนที่จ่ายไปแล้วจะไม่ถูกแตะส่วนที่จ่าย ถ้าจ่ายไม่ครบจะค้างเฉพาะส่วนต่าง`)) return;
-    setMembers(prev => prev.map(m => {
+    const deltaOf = (m: Member) => {
       const old = prevApplied[m.id] || { court: 0, shuttle: 0 };
       const isPlaying = m.gamesPlayed > 0;
       const b = baseOf(m);
       // คนที่ได้ตี: ยอดรวมต้องเท่ากับยอดหารเท่า · คนที่ไม่ได้ตีแล้ว (เช่นยกเลิกเกม): คืนยอดที่เคยเรียกเก็บ
-      const dCourt = isPlaying ? courtShare - b.court : -old.court;
-      const dShuttle = isPlaying ? shuttleShare - b.shuttle : -old.shuttle;
+      return { b, dCourt: isPlaying ? courtShare - b.court : -old.court, dShuttle: isPlaying ? shuttleShare - b.shuttle : -old.shuttle };
+    };
+    const changed = members.filter(m => { const d = deltaOf(m); return d.dCourt || d.dShuttle || (m.status === 'paid' && m.balance > 0); });
+    setMembers(prev => prev.map(m => {
+      const { b, dCourt, dShuttle } = deltaOf(m);
       // คนที่ชำระแล้วแต่ยอดหารเท่าใหม่ทำให้มียอดค้าง (balance > 0) ต้องกลับมาเป็น "ยังไม่ชำระ" ไม่งั้นจะโชว์ว่าชำระแล้วทั้งที่ยังค้าง
       const reopen = m.status === 'paid' && Math.max(0, m.balance + dCourt + dShuttle) > 0;
       if (!dCourt && !dShuttle) return m.status === 'paid' && m.balance > 0 ? { ...m, status: 'resting' as const } : m;
@@ -991,6 +994,12 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
         paidCourtFee: true,
       };
     }));
+    // บอกผลให้เห็นทุกครั้ง (ถ้ายอดตรงอยู่แล้ว กดแล้วไม่มีอะไรเปลี่ยน คนกดจะนึกว่าปุ่มเสีย)
+    alert(changed.length > 0
+      ? `เรียกเก็บแล้ว: ทุกคนที่ได้ตี ${playing.length} คน คนละ ฿${courtShare + shuttleShare} (ค่าสนาม ฿${courtShare} + ค่าลูก ฿${shuttleShare})
+ปรับยอดให้ ${changed.length} คน`
+      : `ยอดถูกต้องอยู่แล้ว: ทุกคนที่ได้ตี ${playing.length} คน คนละ ฿${courtShare + shuttleShare}
+ไม่มีใครต้องปรับยอด`);
     setModeConfig(prev => ({ ...prev, splitApplied: applied }));
   };
 
