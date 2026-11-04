@@ -977,9 +977,12 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
       // คนที่ได้ตี: ยอดรวมต้องเท่ากับยอดหารเท่า · คนที่ไม่ได้ตีแล้ว (เช่นยกเลิกเกม): คืนยอดที่เคยเรียกเก็บ
       const dCourt = isPlaying ? courtShare - b.court : -old.court;
       const dShuttle = isPlaying ? shuttleShare - b.shuttle : -old.shuttle;
-      if (!dCourt && !dShuttle) return m;
+      // คนที่ชำระแล้วแต่ยอดหารเท่าใหม่ทำให้มียอดค้าง (balance > 0) ต้องกลับมาเป็น "ยังไม่ชำระ" ไม่งั้นจะโชว์ว่าชำระแล้วทั้งที่ยังค้าง
+      const reopen = m.status === 'paid' && Math.max(0, m.balance + dCourt + dShuttle) > 0;
+      if (!dCourt && !dShuttle) return m.status === 'paid' && m.balance > 0 ? { ...m, status: 'resting' as const } : m;
       return {
         ...m,
+        ...(reopen ? { status: 'resting' as const } : {}),
         courtBalance: Math.max(0, m.courtBalance + dCourt),
         shuttleBalance: Math.max(0, m.shuttleBalance + dShuttle),
         balance: Math.max(0, m.balance + dCourt + dShuttle),
