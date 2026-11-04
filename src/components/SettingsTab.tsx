@@ -64,13 +64,12 @@ export function SettingsTab({
 }: Props) {
   const [nameDraft, setNameDraft] = useState(groupName);
   // หมวดตั้งค่า (จำหมวดล่าสุดในเครื่องนี้)
-  type Cat = 'general' | 'money' | 'queue' | 'listing' | 'system';
+  type Cat = 'general' | 'money' | 'queue' | 'listing';
   const allCats: { id: Cat; icon: string; label: string; desc: string; ownerOnly?: boolean }[] = [
     { id: 'general', icon: '🏠', label: 'ก๊วนและบัญชี', desc: 'ชื่อก๊วน · แพ็กเกจ · ผู้ช่วย · ออกจากระบบ/เปลี่ยนก๊วน' },
     { id: 'money', icon: '💰', label: 'การเงินและโหมด', desc: 'รูปแบบการจัดก๊วน · ค่าสนาม/ค่าลูก · ถามผลแพ้ชนะ · พร้อมเพย์รับเงิน' },
     { id: 'queue', icon: '📝', label: 'ลงชื่อและคิว', desc: 'ลิงก์ลงชื่อล่วงหน้า · QR/ลิงก์ให้ผู้เล่นดูคิวสด' },
     { id: 'listing', icon: '📣', label: 'หาสมาชิก', desc: 'ประกาศก๊วนบนหน้า "หาก๊วน" · โปสเตอร์ · วัน-เวลา · สถานที่', ownerOnly: true },
-    { id: 'system', icon: '🛠️', label: 'ระบบ', desc: 'ข้อมูลจำลอง · เริ่มวันใหม่ · ล้างข้อมูลทั้งหมด (ระวัง)', ownerOnly: true },
   ];
   const cats = allCats.filter(c => !c.ownerOnly || !isHelper);
   const [cat, setCat] = useState<Cat>(() => {
@@ -326,12 +325,12 @@ export function SettingsTab({
         </div>
       )}
 
-      {/* 5) ระบบ */}
-      {curCat === 'system' && !isHelper && (
+      {/* ปุ่มจัดการข้อมูล: ต่อท้ายแท็บก๊วนและบัญชี */}
+      {curCat === 'general' && !isHelper && (
         <div className="space-y-8">
       {/* System Maintenance Section */}
       {!isHelper && <section className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-on-surface/5 space-y-6">
-        <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40">การจัดการระบบ</h3>
+        <h3 className="text-sm font-black uppercase tracking-widest text-on-surface/40">จัดการข้อมูล</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <button onClick={onSeedMockHistory} 
             className="flex items-center justify-between p-6 bg-secondary/5 hover:bg-secondary/10 rounded-3xl transition-all group border-none">
