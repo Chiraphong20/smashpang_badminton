@@ -17,7 +17,7 @@ import { MembersTab } from './components/MembersTab';
 import { SettingsTab } from './components/SettingsTab';
 import { StatsTab } from './components/StatsTab';
 import { AdminPanel } from './components/AdminPanel';
-import { GroupNameSetup, ModePicker, QuotaBlock } from './components/SetupOverlay';
+import { GroupNameSetup, ModePicker, QuotaBlock, SetupData } from './components/SetupOverlay';
 import { AddMemberModal } from './components/AddMemberModal';
 import { AddCourtModal } from './components/AddCourtModal';
 import { ManageProductsModal } from './components/ManageProductsModal';
@@ -80,18 +80,25 @@ export default function App() {
   if (isSignupMode()) return <SignupPage />;
   if (!groupName) return <div className="min-h-screen bg-on-surface" />;
   if (!authed) return <GroupEntry gid={gid} groupName={groupName} schedule={schedule} onEntered={() => setAuthed(true)} />;
-  const renameGroup = async (name: string, slot: ListingSlot | null) => {
+  const renameGroup = async (name: string, setup: SetupData | null) => {
     const res = await apiJson('/name', { name }, 'PUT');
     if (!res.ok) return false;
     setGroupName(name);
     rememberGroup({ id: gid, name });
-    if (slot) {
-      // เก็บเวลาจัดก๊วนในข้อมูลประกาศ (ไม่เปิดประกาศสาธารณะ) — ถ้าบันทึกไม่ได้ ชื่อก็ตั้งสำเร็จแล้ว ตั้งเวลาทีหลังได้
+    if (setup && (setup.slots.length > 0 || setup.venue)) {
+      // เก็บวัน-เวลา/สถานที่ในข้อมูลประกาศ และเปิดแสดงบนหน้าหาก๊วนเมื่อเจ้าของเลือก — ถ้าบันทึกไม่ได้ ชื่อก๊วนก็ยังบันทึกแล้ว
       try {
         const cur = await (await apiFetch('/listing')).json();
         const { name: _n, updatedAt: _u, ...rest } = cur;
-        const put = await apiJson('/listing', { ...rest, schedule: [slot] }, 'PUT');
-        if (put.ok) setSchedule([slot]);
+        const body = { ...rest, schedule: setup.slots, venue: setup.venue || rest.venue || '' };
+        let put = await apiJson('/listing', { ...body, listed: setup.listed }, 'PUT');
+        if (!put.ok && setup.listed) {
+          // เปิดประกาศไม่ได้ (เช่นแพ็กเกจไม่รองรับ) → บันทึกข้อมูลไว้เฉยๆ ไม่แสดงสาธารณะ แล้วแจ้งเหตุผล
+          const err = await put.json().catch(() => ({}));
+          put = await apiJson('/listing', { ...body, listed: false }, 'PUT');
+          alert(`บันทึกข้อมูลก๊วนแล้ว แต่ยังไม่แสดงบนหน้าหาก๊วน${err?.message ? `\n${err.message}` : ''}`);
+        }
+        if (put.ok) setSchedule(setup.slots);
       } catch { /* ignore */ }
     }
     return true;
@@ -99,7 +106,7 @@ export default function App() {
   return <GroupApp isHelper={getGroupRole(gid) === 'helper'} groupName={groupName} schedule={schedule} needsName={groupName === gid} onRename={renameGroup} />;
 }
 
-function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHelper: boolean; groupName: string; schedule: ListingSlot[]; needsName: boolean; onRename: (name: string, slot: ListingSlot | null) => Promise<boolean> }) {
+function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHelper: boolean; groupName: string; schedule: ListingSlot[]; needsName: boolean; onRename: (name: string, setup: SetupData | null) => Promise<boolean> }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [courts, setCourts] = useState<Court[]>([]);
   const [snacks, setSnacks] = useState<Snack[]>([]);

@@ -6,63 +6,125 @@ import { DAY_NAMES, ListingSlot } from '../lib/api';
 
 const MODES = Object.keys(MODE_LABELS) as SessionMode[];
 
+// ข้อมูลที่กรอกตอนเริ่มใช้งานครั้งแรก
+export interface SetupData { slots: ListingSlot[]; venue: string; listed: boolean }
+
 // ตั้งชื่อก๊วน — โชว์ครั้งแรกที่เข้าก๊วนที่เพิ่งสร้าง (ชื่อยังเป็นรหัสก๊วนอยู่)
-export function GroupNameSetup({ onSave }: { onSave: (name: string, slot: ListingSlot | null) => Promise<boolean> }) {
+// 1 ชื่อก๊วน · 2 วัน-เวลาจัดก๊วน (เพิ่มได้หลายวัน) · 3 จะระบุสถานที่ไหม · 4 ชื่อสนาม · 5 จะแสดงบนหน้าเว็บ (หาก๊วน) ไหม
+export function GroupNameSetup({ onSave }: { onSave: (name: string, setup: SetupData | null) => Promise<boolean> }) {
   const [name, setName] = useState('');
-  const [day, setDay] = useState('');  // '' = ไม่ระบุเวลาจัดก๊วน
-  const [start, setStart] = useState('18:00');
-  const [end, setEnd] = useState('21:00');
+  const [rows, setRows] = useState<{ day: string; start: string; end: string }[]>([{ day: '', start: '18:00', end: '21:00' }]);
+  const [wantVenue, setWantVenue] = useState(false);
+  const [venue, setVenue] = useState('');
+  const [publish, setPublish] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  const slots: ListingSlot[] = rows.filter(r => r.day !== '' && r.start).map(r => ({ day: Number(r.day), start: r.start, end: r.end }));
+  const venueOk = wantVenue && venue.trim().length > 0;
+  // ประกาศบนหน้าหาก๊วนต้องมีทั้งวันเวลาและชื่อสนาม
+  const canPublish = slots.length > 0 && venueOk;
+  const setRow = (i: number, patch: Partial<{ day: string; start: string; end: string }>) => setRows(prev => prev.map((r, k) => (k === i ? { ...r, ...patch } : r)));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (wantVenue && !venue.trim()) { setError('กรุณากรอกชื่อสนาม หรือเลือก "ยังไม่ระบุ"'); return; }
     setBusy(true); setError('');
-    const slot = day !== '' && start ? { day: Number(day), start, end } : null;
-    if (!(await onSave(name.trim(), slot))) setError('บันทึกชื่อไม่สำเร็จ ลองใหม่อีกครั้ง');
+    const hasAny = slots.length > 0 || venueOk;
+    const setup: SetupData | null = hasAny ? { slots, venue: venueOk ? venue.trim() : '', listed: publish && canPublish } : null;
+    if (!(await onSave(name.trim(), setup))) setError('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
     setBusy(false);
   };
 
+  const field = 'px-3 py-3 bg-teal-50 rounded-xl font-bold text-primary border-2 border-teal-200 focus:outline-none focus:border-teal-400';
+  const choice = (on: boolean, disabled = false) => cn('flex-1 py-3 rounded-xl font-black text-sm border-2 transition-all',
+    on ? 'bg-primary text-white border-primary shadow-md' : 'bg-teal-50 text-primary border-teal-200 hover:border-teal-400', disabled && 'opacity-40 cursor-not-allowed');
+
   return (
-    <div className="fixed inset-0 z-[500] bg-primary/80 backdrop-blur-sm flex items-center justify-center p-6 overflow-y-auto">
-      <form onSubmit={submit} className="bg-white rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[500] bg-primary/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 sm:p-6 overflow-y-auto">
+      <form onSubmit={submit} className="bg-white rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden my-auto">
         <img src="/setup-name.png" alt="" className="w-full -mb-6 select-none pointer-events-none" draggable={false} />
-        <div className="relative px-10 pb-8 space-y-5">
+        <div className="relative px-6 sm:px-10 pb-8 space-y-6">
           <div className="text-center space-y-1">
-            <h2 className="font-headline font-black text-3xl text-primary">ตั้งชื่อก๊วนของคุณ</h2>
-            <p className="text-sm text-on-surface/50">ชื่อนี้จะแสดงในระบบและจอคิว เปลี่ยนภายหลังได้</p>
+            <h2 className="font-headline font-black text-3xl text-primary">ตั้งค่าก๊วนของคุณ</h2>
+            <p className="text-sm text-on-surface/50">กรอกเท่าที่พร้อม ข้ามได้ และเปลี่ยนภายหลังได้ที่ตั้งค่า</p>
           </div>
+
+          {/* 1 ชื่อก๊วน */}
           <div className="space-y-2">
-            <label className="text-sm font-black text-primary">ชื่อก๊วน</label>
+            <label className="text-sm font-black text-primary">1. ชื่อก๊วน</label>
             <div className="relative">
               <input autoFocus value={name} onChange={e => setName(e.target.value)} maxLength={100} placeholder="เช่น ก๊วนวันอังคาร"
                 className="w-full pl-6 pr-14 py-4 bg-teal-50 rounded-2xl font-headline font-black text-xl text-primary placeholder:text-primary/30 border-2 border-teal-400 focus:outline-none focus:ring-4 focus:ring-teal-400/20" />
               <Pencil size={20} className="absolute right-5 top-1/2 -translate-y-1/2 text-primary/60" />
             </div>
           </div>
+
+          {/* 2 วัน-เวลา (หลายวันได้) */}
           <div className="space-y-2">
-            <label className="text-sm font-black text-primary">เวลาจัดก๊วน <span className="font-bold text-on-surface/40">(ไม่บังคับ)</span></label>
-            <div className="flex flex-wrap items-center gap-2">
-              <select value={day} onChange={e => setDay(e.target.value)}
-                className="px-4 py-3 bg-teal-50 rounded-xl font-bold text-primary border-2 border-teal-200 focus:outline-none focus:border-teal-400">
-                <option value="">ไม่ระบุ</option>
-                {DAY_NAMES.map((d, n) => <option key={d} value={n}>วัน{d}</option>)}
-              </select>
-              {day !== '' && (
-                <>
-                  <input type="time" value={start} onChange={e => setStart(e.target.value)} className="px-3 py-3 bg-teal-50 rounded-xl font-bold text-primary border-2 border-teal-200 focus:outline-none focus:border-teal-400" />
-                  <span className="font-bold text-on-surface/40">–</span>
-                  <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="px-3 py-3 bg-teal-50 rounded-xl font-bold text-primary border-2 border-teal-200 focus:outline-none focus:border-teal-400" />
-                </>
-              )}
+            <label className="text-sm font-black text-primary">2. วัน-เวลาจัดก๊วน <span className="font-bold text-on-surface/40">(เพิ่มได้หลายวัน · ไม่บังคับ)</span></label>
+            <div className="space-y-2">
+              {rows.map((r, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-2 rounded-2xl bg-teal-50/40 sm:bg-transparent p-2 sm:p-0">
+                  <select value={r.day} onChange={e => setRow(i, { day: e.target.value })} className={cn(field, 'flex-1 sm:flex-none sm:w-40 min-w-0')}>
+                    <option value="">ไม่ระบุ</option>
+                    {DAY_NAMES.map((d, n) => <option key={d} value={n}>วัน{d}</option>)}
+                  </select>
+                  {rows.length > 1 && (
+                    <button type="button" onClick={() => setRows(prev => prev.filter((_, k) => k !== i))} aria-label="ลบวันนี้"
+                      className="order-2 sm:order-none w-9 h-9 shrink-0 rounded-full text-on-surface/40 hover:text-red-500 hover:bg-red-50 text-lg leading-none">×</button>
+                  )}
+                  {r.day !== '' && (
+                    <div className="order-3 sm:order-none basis-full sm:basis-auto flex items-center gap-2">
+                      <input type="time" value={r.start} onChange={e => setRow(i, { start: e.target.value })} className={cn(field, 'flex-1 min-w-0')} />
+                      <span className="font-bold text-on-surface/40">–</span>
+                      <input type="time" value={r.end} onChange={e => setRow(i, { end: e.target.value })} className={cn(field, 'flex-1 min-w-0')} />
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-            {day !== '' && <p className="text-xs text-on-surface/40">เว้นเวลาจบว่าง = "เป็นต้นไป" · เพิ่มวันอื่นได้ภายหลังที่หน้าประกาศหาสมาชิก</p>}
+            {rows.length < 7 && (
+              <button type="button" onClick={() => setRows(prev => [...prev, { day: '', start: '18:00', end: '21:00' }])}
+                className="text-sm font-black text-primary hover:underline">+ เพิ่มวัน/เวลาอื่น</button>
+            )}
+            <p className="text-xs text-on-surface/40">เว้นเวลาจบว่าง = "เป็นต้นไป"</p>
           </div>
+
+          {/* 3 สถานที่ไหม */}
+          <div className="space-y-2">
+            <label className="text-sm font-black text-primary">3. ต้องการระบุสถานที่เล่นไหม?</label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setWantVenue(true)} className={choice(wantVenue)}>ระบุสถานที่</button>
+              <button type="button" onClick={() => { setWantVenue(false); setPublish(false); }} className={choice(!wantVenue)}>ยังไม่ระบุ</button>
+            </div>
+            {/* 4 ชื่อสนาม */}
+            {wantVenue && (
+              <div className="space-y-1 pt-1">
+                <label className="text-sm font-black text-primary">4. ชื่อสนาม</label>
+                <input value={venue} onChange={e => setVenue(e.target.value)} maxLength={150} placeholder="เช่น สนาม ABC แบดมินตัน"
+                  className="w-full px-4 py-3 bg-teal-50 rounded-xl font-bold text-primary placeholder:text-primary/30 border-2 border-teal-200 focus:outline-none focus:border-teal-400" />
+              </div>
+            )}
+          </div>
+
+          {/* 5 แสดงบนหน้าเว็บไหม */}
+          <div className="space-y-2">
+            <label className="text-sm font-black text-primary">{wantVenue ? '5' : '4'}. แสดงข้อมูลนี้บนหน้าเว็บ "หาก๊วน" ให้คนอื่นเห็นไหม?</label>
+            <div className="flex gap-2">
+              <button type="button" disabled={!canPublish} onClick={() => setPublish(true)} className={choice(publish && canPublish, !canPublish)}>แสดง</button>
+              <button type="button" onClick={() => setPublish(false)} className={choice(!publish || !canPublish)}>ไม่แสดง</button>
+            </div>
+            <p className="text-xs text-on-surface/40">
+              {canPublish ? 'คนทั่วไปจะเห็นชื่อก๊วน วัน-เวลา และสถานที่ในหน้าหาก๊วน (ไม่เห็นข้อมูลสมาชิกหรือยอดเงิน)' : 'ต้องกรอกทั้งวัน-เวลาและชื่อสนามก่อน จึงจะเลือกแสดงได้'}
+            </p>
+          </div>
+
           {error && <p className="text-sm font-bold text-red-500 text-center">{error}</p>}
           <button disabled={busy || !name.trim()} className="w-full py-4 rounded-2xl text-white font-headline font-black text-lg disabled:opacity-40 flex items-center justify-center gap-3 hover:brightness-110 transition-all"
             style={{ background: 'linear-gradient(90deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 80%, #3b5bdb))' }}>
-            {busy ? 'กำลังบันทึก...' : <>ตั้งชื่อและเริ่มใช้งาน <ArrowRight size={20} /></>}
+            {busy ? 'กำลังบันทึก...' : <>บันทึกและเริ่มใช้งาน <ArrowRight size={20} /></>}
           </button>
           <p className="text-center text-sm text-on-surface/40">พร้อมแล้ว ชวนเพื่อนมาสนุกด้วยกัน</p>
         </div>
