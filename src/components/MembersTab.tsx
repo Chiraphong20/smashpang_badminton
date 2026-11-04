@@ -33,6 +33,10 @@ interface Props {
 
 type Filter = 'all' | 'waiting' | 'playing' | 'resting';
 
+// ยอดที่ถูกคิดวันนี้ทั้งหมด และส่วนที่จ่ายไปแล้ว (ค้าง = ยอดรวม − จ่ายแล้ว) ใช้อธิบายว่าทำไมบางคนค้างน้อยกว่าคนอื่น
+const chargedOf = (m: Member) => Math.round((m.totalCourt || 0) + (m.totalShuttle || 0) + (m.totalSnack || 0));
+const paidOf = (m: Member) => Math.max(0, chargedOf(m) - Math.round(m.balance));
+
 export function MembersTab({ 
   members, groupName = '', gameHistory = [], sessionHistory = [], profiles = {}, onSaveProfile, searchQuery, onSearch, onRemove, onAddMember, onImportLine, 
   onUpdateRank, onUpdateName, onAddCourt, onCheckIn,
@@ -200,7 +204,9 @@ export function MembersTab({
                     <UserRound size={12} /> โปรไฟล์
                   </button>
                   {member.balance > 0 && (
-                    <span className="text-xs font-black text-error">฿{member.balance.toFixed(0)}</span>
+                    <span className="text-xs font-black text-error" title={paidOf(member) > 0 ? `ยอดรวม ฿${chargedOf(member)} · จ่ายไปแล้ว ฿${paidOf(member)}` : undefined}>
+                      ฿{member.balance.toFixed(0)}{paidOf(member) > 0 && <span className="ml-1 font-bold text-on-surface/40">(จ่ายแล้ว ฿{paidOf(member)})</span>}
+                    </span>
                   )}
                   {confirmDelete === member.id ? (
                     <div className="flex gap-1">
