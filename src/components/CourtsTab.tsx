@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Bolt, X, Plus, Trash2, ShoppingCart, Search, Check, RotateCcw, Lock, ChevronDown, ChevronRight, RefreshCw, Wand2, ArrowDownWideNarrow, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -179,9 +180,117 @@ export function PlayerPicker({ members, currentPlayerId, onSelect, onClose, posi
   );
 }
 
+// ── Player Modal Picker (กลางจอ · เลือกได้หลายคนทีเดียว) ──────────────────────────
+// ใช้ตอนเอาคนลงคอร์ด: แตะช่องว่างแล้วเลือกชื่อหลายคนในหน้าต่างเดียว (สูงสุดเท่าช่องว่าง) แล้วกดตกลง
+// ไม่เด้งคีย์บอร์ดบนมือถือเอง (จอไม่ขยับ) — แตะช่องค้นหาเองเมื่ออยากพิมพ์
+export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = null, max, onConfirm, onRemove, onClose }: {
+  members: Member[];
+  profiles?: Record<string, PlayerProfile>;
+  /** คนที่อยู่ในช่องนี้อยู่แล้ว (โหมดเปลี่ยนคน: เลือกทีละคน) */
+  currentPlayerId?: string | null;
+  /** เลือกได้อีกกี่คน (ช่องว่างที่เหลือ) */
+  max: number;
+  onConfirm: (ids: string[]) => void;
+  onRemove?: () => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
+  const [hi, setHi] = useState(0);
+  const single = max <= 1;
+  const searchRef = useRef<HTMLInputElement>(null);
+  // เครื่องที่มีเมาส์/คีย์บอร์ดจริง (คอม) โฟกัสช่องค้นหาให้เลย · มือถือไม่โฟกัส เพื่อไม่ให้แป้นพิมพ์เด้งขึ้นมาบังรายชื่อ
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia?.('(pointer: fine)').matches) searchRef.current?.focus();
+  }, []);
+
+  const list = members
+    .filter(m => (m.status === 'waiting' || m.id === currentPlayerId) && m.name.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => (a.gamesPlayed !== b.gamesPlayed ? a.gamesPlayed - b.gamesPlayed : a.checkInTime - b.checkInTime));
+  useEffect(() => { setHi(0); }, [q]);
+
+  const toggle = (id: string) => {
+    if (single) { onConfirm([id]); return; }
+    setPicked(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length >= max ? prev : [...prev, id]);
+  };
+  const confirm = () => { if (picked.length > 0) onConfirm(picked); };
+  const full = !single && picked.length >= max;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-4" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+      <div className="absolute inset-0 bg-on-surface/55 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.14 }}
+        className="relative z-10 bg-white rounded-[1.75rem] shadow-2xl w-full max-w-md flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-on-surface/5 shrink-0">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-headline font-black text-lg leading-tight">{single ? 'เลือกผู้เล่น' : `เลือกผู้เล่นลงคอร์ด`}</h3>
+            <p className="text-xs font-bold text-on-surface/45">{single ? 'แตะชื่อเพื่อเลือก' : `แตะเลือกได้สูงสุด ${max} คน · เลือกแล้ว ${picked.length}/${max}`}</p>
+          </div>
+          <button onClick={onClose} className="p-2 -mr-2 rounded-full hover:bg-background" aria-label="ปิด"><X size={20} /></button>
+        </div>
+        <div className="px-4 pt-3 shrink-0">
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface/30" />
+            <input ref={searchRef} value={q} onChange={e => setQ(e.target.value)} placeholder="ค้นหาชื่อ (ไม่บังคับ)"
+              onKeyDown={e => {
+                if (e.key === 'ArrowDown') { e.preventDefault(); setHi(i => Math.min(i + 1, list.length - 1)); return; }
+                if (e.key === 'ArrowUp') { e.preventDefault(); setHi(i => Math.max(i - 1, 0)); return; }
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                if (q.trim() && list[hi]) { toggle(list[hi].id); setQ(''); return; }
+                if (!single) confirm();
+              }}
+              className="w-full pl-9 pr-3 py-2.5 bg-background rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20" />
+          </div>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto mt-2 pb-1">
+          {currentPlayerId && onRemove && (
+            <button onClick={() => { onRemove(); onClose(); }} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-error/5 text-error">
+              <X size={15} /><span className="text-sm font-black">นำออกจากช่องนี้</span>
+            </button>
+          )}
+          {list.length === 0 && <p className="text-center py-8 text-sm text-on-surface/30 font-bold">ไม่มีผู้เล่นที่รอลงสนาม</p>}
+          {list.map((m, i) => {
+            const idx = picked.indexOf(m.id);
+            const on = idx >= 0;
+            const locked = !on && full;
+            return (
+              <button key={m.id} onClick={() => toggle(m.id)} disabled={locked}
+                className={cn('w-full flex items-center gap-3 px-5 py-2.5 transition-colors text-left', on ? 'bg-primary/10' : 'hover:bg-primary/5', locked && 'opacity-35', i === hi && q.trim() && 'ring-2 ring-inset ring-primary/20')}>
+                <PlayerBadge rank={m.rank} name={m.name} profile={profiles[m.id]} className="w-10 h-10 rounded-xl text-sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold truncate">{m.name}{m.id === currentPlayerId && <span className="ml-2 text-xs text-primary font-black">อยู่ช่องนี้</span>}</p>
+                  <p className="text-xs text-on-surface/40">{RANK_LEVEL_LABELS[m.rank]}{RANK_LEVEL_LABELS[m.rank] ? ' · ' : ''}{m.gamesPlayed} เกม</p>
+                </div>
+                {!single && (
+                  <span className={cn('w-7 h-7 rounded-full flex items-center justify-center text-sm font-black shrink-0 border-2', on ? 'bg-primary border-primary text-white' : 'border-on-surface/15 text-transparent')}>
+                    {on ? idx + 1 : '·'}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {!single && (
+          <div className="px-4 py-3 border-t border-on-surface/5 flex items-center gap-2 shrink-0">
+            <button onClick={() => setPicked([])} disabled={picked.length === 0} className="px-4 py-3 rounded-xl text-sm font-bold text-on-surface/50 hover:bg-background disabled:opacity-30">ล้าง</button>
+            <button onClick={confirm} disabled={picked.length === 0}
+              className="flex-1 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 disabled:opacity-40 active:scale-95 transition-all">
+              ลงคอร์ด {picked.length > 0 ? `${picked.length} คน` : ''}
+            </button>
+          </div>
+        )}
+      </motion.div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Slot Card ────────────────────────────────────────────────────────────────
-export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locked, openRequest, profiles = {}, pickAll = false, sheet = false }: {
+export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locked, openRequest, profiles = {}, pickAll = false, sheet = false, multi }: {
   key?: number;
+  /** เลือกหลายคนในหน้าต่างกลางจอ (หน้าจัดคอร์ด): emptySlots = ช่องว่างที่เหลือ · onPickMany = ใส่ชื่อทั้งหมดลงช่องว่างตามลำดับ */
+  multi?: { emptySlots: number; onPickMany: (ids: string[]) => void };
   pickAll?: boolean;
   sheet?: boolean;
   profiles?: Record<string, PlayerProfile>;
@@ -208,6 +317,7 @@ export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect
   useEffect(() => {
     if (!open) return;
     const fn = (e: MouseEvent) => {
+      if (multi) return; // หน้าต่างกลางจอปิดด้วยปุ่ม/พื้นหลังของมันเอง
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', fn);
@@ -294,7 +404,18 @@ export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect
       </div>
 
       <AnimatePresence>
-        {open && !locked && (
+        {open && !locked && multi && (
+          <PlayerModalPicker
+            members={members}
+            profiles={profiles}
+            currentPlayerId={playerId}
+            max={player ? 1 : Math.max(1, multi.emptySlots)}
+            onConfirm={ids => { if (player) onSelect(ids[0]); else multi.onPickMany(ids); setOpen(false); }}
+            onRemove={() => onSelect(null)}
+            onClose={() => setOpen(false)}
+          />
+        )}
+        {open && !locked && !multi && (
           <PlayerPicker
             profiles={profiles}
             pickAll={pickAll}
@@ -606,6 +727,15 @@ export function CourtsTab({
     if (empty !== -1) guardQueue(() => onAddPlayer(selected.id, empty, m.id));
     else alert('ไม่มีสล็อตว่างในคอร์ดนี้');
   };
+
+  // เลือกหลายคนทีเดียว: ใส่ชื่อลงช่องว่างของคอร์ดตามลำดับ (ผ่านการถามคิวค้างเหมือนเดิม)
+  const multiPick = selected ? {
+    emptySlots: selected.players.slice(0, 4).filter(p => p === null).length,
+    onPickMany: (ids: string[]) => guardQueue(() => {
+      const empties = selected.players.slice(0, 4).map((p, i) => (p === null ? i : -1)).filter(i => i >= 0);
+      ids.slice(0, empties.length).forEach((id, k) => onAddPlayer(selected.id, empties[k], id));
+    }),
+  } : undefined;
 
   // สลับทีม = สุ่มจัดคู่ใหม่ (ไม่ใช่แค่ย้าย A↔B) — ได้คู่ที่ต่างจากเดิมเสมอเมื่อมีผู้เล่นครบ 4 คน
   const swapTeams = () => {
@@ -1113,7 +1243,7 @@ export function CourtsTab({
                   <div className="grid grid-cols-2 xl:grid-cols-1 gap-2.5">
                     {[0, 1].map(i => (
                       <SlotCard key={i} slotIndex={i} courtId={selected.id} playerId={selected.players[i]} team="A"
-                        members={members} profiles={profiles} onSelect={id => handleSelect(i, id)} locked={false}
+                        members={members} profiles={profiles} onSelect={id => handleSelect(i, id)} locked={false} multi={multiPick}
                         openRequest={openSlotRequest?.slot === i ? openSlotRequest.nonce : null} />
                     ))}
                   </div>
@@ -1135,7 +1265,7 @@ export function CourtsTab({
                   <div className="grid grid-cols-2 xl:grid-cols-1 gap-2.5">
                     {[2, 3].map(i => (
                       <SlotCard key={i} slotIndex={i} courtId={selected.id} playerId={selected.players[i]} team="B"
-                        members={members} profiles={profiles} onSelect={id => handleSelect(i, id)} locked={false}
+                        members={members} profiles={profiles} onSelect={id => handleSelect(i, id)} locked={false} multi={multiPick}
                         openRequest={openSlotRequest?.slot === i ? openSlotRequest.nonce : null} />
                     ))}
                   </div>

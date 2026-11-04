@@ -960,14 +960,23 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     const courtShare = Math.ceil(modeConfig.splitCourtTotal / playing.length);
     const shuttleShare = Math.ceil(modeConfig.splitShuttleTotal / playing.length);
     const applied: Record<string, { court: number; shuttle: number }> = {};
+    // ยอดค่าสนาม/ค่าลูกที่ค้างอยู่เกินจากยอดหารเท่าที่เคยเรียกเก็บ = ถูกคิดแบบนับเกม/บุฟเฟต์ไว้ก่อนเปลี่ยนโหมด
+    // ต้องเอาออกแล้วใช้ยอดหารเท่าแทน ไม่งั้นบางคนจะจ่ายซ้ำซ้อนและยอดไม่เท่ากัน
+    const leftover = (m: Member) => {
+      const old = prevApplied[m.id] || { court: 0, shuttle: 0 };
+      return { court: m.gamesPlayed > 0 ? Math.max(0, m.courtBalance - old.court) : 0, shuttle: m.gamesPlayed > 0 ? Math.max(0, m.shuttleBalance - old.shuttle) : 0 };
+    };
+    const replaced = members.filter(m => { const l = leftover(m); return l.court + l.shuttle > 0; });
+    if (replaced.length > 0 && !confirm(`มี ${replaced.length} คนที่ถูกคิดค่าสนาม/ค่าลูกแบบเดิมไว้ก่อนเปลี่ยนมาโหมดหารเท่า\n(${replaced.slice(0, 5).map(m => m.name).join(', ')}${replaced.length > 5 ? ' …' : ''})\n\nจะเอายอดเดิมของค่าสนามและค่าลูกออก แล้วใช้ยอดหารเท่าแทน เพื่อให้ทุกคนจ่ายเท่ากัน ตกลงไหม?`)) return;
     setMembers(prev => prev.map(m => {
       const old = prevApplied[m.id] || { court: 0, shuttle: 0 };
       const isPlaying = m.gamesPlayed > 0;
       const court = isPlaying ? courtShare : 0;
       const shuttle = isPlaying ? shuttleShare : 0;
       if (isPlaying) applied[m.id] = { court, shuttle };
-      const dCourt = court - old.court;
-      const dShuttle = shuttle - old.shuttle;
+      const lo = leftover(m);
+      const dCourt = court - old.court - lo.court;
+      const dShuttle = shuttle - old.shuttle - lo.shuttle;
       if (!dCourt && !dShuttle) return m;
       return {
         ...m,
@@ -1699,6 +1708,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
             onImport={importMembers}
             rankMemory={rankMemory}
             existingNames={members.map(m => m.name)}
+            existingRanks={Object.fromEntries(members.map(m => [m.name.trim().toLowerCase(), m.rank]))}
+            capacity={plan?.plan.maxPlayers != null ? { max: plan.plan.maxPlayers, current: members.filter(isTodayPlayer).length } : undefined}
             todayGames={Object.fromEntries(members.filter(isTodayPlayer).map(m => [m.name.trim().toLowerCase(), m.gamesPlayed]))}
             isSessionMode={importIsSession}
             initialText={importInitialText}

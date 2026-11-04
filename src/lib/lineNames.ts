@@ -41,7 +41,6 @@ export function parseLineNames(text: string): ParsedName[] {
   const hasNumbers = lines.some(l => numbered.test(l) && (numbered.exec(l)![1] || '').trim());
 
   const out: ParsedName[] = [];
-  const seen = new Set<string>();
   let reserve = false;
 
   for (const line of lines) {
@@ -62,10 +61,7 @@ export function parseLineNames(text: string): ParsedName[] {
 
     const n = cleanName(body);
     if (!n) continue;
-    const key = n.name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(n);
+    out.push(n); // ชื่อซ้ำไม่ตัดทิ้ง: ให้หน้านำเข้าตัดสินตามชื่อ+ระดับมือ (คนละคนชื่อเดียวกันมีจริง)
   }
   return out;
 }

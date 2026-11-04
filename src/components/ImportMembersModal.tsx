@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, FileText, UserPlus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS } from '../types';
 import { parseLineNames } from '../lib/lineNames';
-import { similarNames } from '../lib/nameMatch';
 
 interface ParsedMember {
   id: string;
@@ -18,6 +17,10 @@ interface Props {
   onImport: (members: { name: string; rank: Rank }[], isSession: boolean) => void;
   rankMemory: Record<string, Rank>;
   existingNames: string[];
+  /** ชื่อสมาชิกเดิม(ตัวพิมพ์เล็ก) → ระดับมือปัจจุบัน ใช้แยก "คนเดิม" กับ "คนชื่อซ้ำ" */
+  existingRanks?: Record<string, Rank>;
+  /** ข้อจำกัดจำนวนผู้เล่นต่อวันตามแพ็กเกจ */
+  capacity?: { max: number; current: number };
   isSessionMode?: boolean;
   /** คนที่อยู่ในก๊วนวันนี้แล้ว: ชื่อ(ตัวพิมพ์เล็ก) → จำนวนเกมที่ตีไปแล้ว */
   todayGames?: Record<string, number>;
@@ -53,7 +56,7 @@ function parseMasterList(text: string): { name: string; rank: Rank }[] {
   return results;
 }
 
-export function ImportMembersModal({ open, onClose, onImport, rankMemory, existingNames, isSessionMode, todayGames = {}, initialText }: Props) {
+export function ImportMembersModal({ open, onClose, onImport, rankMemory, existingNames, existingRanks = {}, capacity, isSessionMode, todayGames = {}, initialText }: Props) {
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<ParsedMember[]>([]);
   const [step, setStep] = useState<'paste' | 'confirm'>('paste');
@@ -62,11 +65,6 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
   // จริงๆ ก็ตาม) ไม่ให้ไปโดนเงื่อนไข "นำเข้า" ทันทีก่อนจะได้เห็นหน้าจอเปลี่ยนเป็นหน้ายืนยันเลือกมือ
   const confirmEnteredAtRef = React.useRef(0);
 
-  // ชื่อที่ผู้จัดตอบว่า "ไม่ใช่คนเดียวกัน" แล้ว จะไม่ถามซ้ำ
-  const [notSame, setNotSame] = useState<Set<string>>(new Set());
-  // ชื่อที่ซ้ำกับสมาชิกเดิมเป๊ะๆ และผู้จัดยืนยันแล้วว่า "คนเดียวกัน"
-  const [sameOk, setSameOk] = useState<Set<string>>(new Set());
-
   const handleParse = (override?: string) => {
     if (mode === 'line') {
       const results = parseLine(override ?? text);
@@ -74,7 +72,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
       setParsed(results.map((res, i) => ({
         id: `import-${i}`,
         name: res.name,
-        rank: res.rank || rankMemory[res.name] || ('P' as Rank)
+        rank: res.rank || existingRanks[res.name.trim().toLowerCase()] || rankMemory[res.name] || ('P' as Rank)
       })));
       setStep('confirm');
       confirmEnteredAtRef.current = Date.now();
@@ -93,65 +91,69 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
 
   // เปิดพร้อมข้อความที่เตรียมไว้ → วิเคราะห์ทันที
   useEffect(() => {
-    if (open && initialText) { setText(initialText); setNotSame(new Set()); setSameOk(new Set()); handleParse(initialText); }
+    if (open && initialText) { setText(initialText); handleParse(initialText); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialText]);
-
-  // ตอบว่า "ใช่คนเดียวกัน" → ใช้ชื่อและระดับมือของสมาชิกเดิม
-  const mergeInto = (id: string, existing: string) => {
-    setParsed(prev => prev.map(p => p.id === id ? { ...p, name: existing, rank: rankMemory[existing] ?? p.rank } : p));
-  };
 
   const updateRank = (id: string, rank: Rank) => {
     setParsed(prev => prev.map(p => p.id === id ? { ...p, rank } : p));
   };
   const updateName = (id: string, name: string) => {
     setParsed(prev => prev.map(p => p.id === id ? { ...p, name } : p));
-    setSameOk(prev => { if (!prev.has(id)) return prev; const n = new Set(prev); n.delete(id); return n; }); // แก้ชื่อแล้ว ให้ตรวจใหม่
-  };
-  const isDupOf = (name: string) => existingNames.some(n => n.trim().toLowerCase() === name.trim().toLowerCase());
-  // ชื่อที่ตรงกับคนที่อยู่ในก๊วนวันนี้แล้ว — ถ้าไม่ตอบว่าเป็นคนละคน จะถูกข้าม (ไม่รีเซ็ตยอดของคนเดิม)
-  const todayOf = (name: string) => (isSessionMode ? todayGames[name.trim().toLowerCase()] : undefined);
-  const isSkipped = (p: ParsedMember) => todayOf(p.name) !== undefined;
-  const importable = parsed.filter(p => p.name.trim() && !isSkipped(p));
-  const unresolvedDups = mode === 'line' ? parsed.filter(p => isDupOf(p.name) && !isSkipped(p) && !sameOk.has(p.id)) : [];
-  // เน็ต → เน็ต 2 → เน็ต 3 (ไม่ชนกับสมาชิกเดิมหรือชื่ออื่นในรายการ)
-  const uniqueName = (base: string) => {
-    const taken = new Set([...existingNames, ...parsed.map(x => x.name)].map(n => n.trim().toLowerCase()));
-    let n = 2;
-    while (taken.has(`${base.trim()} ${n}`.toLowerCase())) n++;
-    return `${base.trim()} ${n}`;
   };
   const removeParsed = (id: string) => {
     setParsed(prev => prev.filter(p => p.id !== id));
   };
 
-  const handleImport = () => {
-    const valid = importable;
-    
-    // Check for internal duplicates (clones in the pasted text)
-    const seen = new Set<string>();
-    const internalDuplicates = new Set<string>();
-    valid.forEach(p => {
-      const n = p.name.trim().toLowerCase();
-      if (seen.has(n)) {
-        internalDuplicates.add(p.name.trim());
+  // กติกาชื่อซ้ำ (ดูแค่ชื่อกับระดับมือ ไม่ถามว่าใช่คนเดียวกันไหม):
+  //  · ชื่อตรงสมาชิกเดิมและระดับมือเท่ากัน → คนเดิม นำเข้าเลย
+  //  · ชื่อซ้ำแต่ระดับมือต่างกัน → ถือเป็นคนละคน ต่อท้ายชื่อด้วยระดับมือ เช่น "เน็ต S1"
+  //  · ชื่อซ้ำและระดับมือเท่ากัน (ซ้ำกันเองในรายการ) → บังคับให้เปลี่ยนชื่อ
+  type Status = 'new' | 'member' | 'renamed' | 'blocked' | 'empty';
+  const resolved = useMemo(() => {
+    const claimed = new Map<string, Rank>();
+    return parsed.map((p): { final: string; status: Status } => {
+      const base = p.name.trim();
+      if (!base) return { final: '', status: 'empty' };
+      const attempt = (n: string): 'new' | 'member' | 'same' | 'diff' => {
+        const k = n.toLowerCase();
+        if (claimed.has(k)) return claimed.get(k) === p.rank ? 'same' : 'diff';
+        const ex = existingRanks[k];
+        if (ex === undefined) return existingNames.some(x => x.trim().toLowerCase() === k) ? 'member' : 'new';
+        return ex === p.rank ? 'member' : 'diff';
+      };
+      let final = base; let status: Status;
+      const r = attempt(base);
+      if (r === 'new' || r === 'member') status = r;
+      else if (r === 'same') status = 'blocked';
+      else {
+        final = `${base} ${p.rank}`;
+        const r2 = attempt(final);
+        if (r2 === 'new' || r2 === 'member') status = 'renamed';
+        else { final = base; status = 'blocked'; }
       }
-      seen.add(n);
+      if (status !== 'blocked') claimed.set(final.toLowerCase(), p.rank);
+      return { final, status };
     });
+  }, [parsed, existingNames, existingRanks]);
 
-    if (internalDuplicates.size > 0) {
-      alert(`ตรวจพบชื่อซ้ำในรายการนำเข้า: ${Array.from(internalDuplicates).join(', ')}\nกรุณาแก้ไขชื่อให้ต่างกันก่อนนำเข้าครับ`);
+  // คนที่อยู่ในก๊วนวันนี้แล้ว (ชื่อ+ระดับมือตรงกัน) จะถูกข้าม ไม่รีเซ็ตยอดของคนเดิม
+  const todayOf = (i: number) => (isSessionMode && resolved[i] && resolved[i].status !== 'blocked' && resolved[i].status !== 'empty' ? todayGames[resolved[i].final.toLowerCase()] : undefined);
+  const isSkipped = (i: number) => todayOf(i) !== undefined;
+  const importableIdx = parsed.map((_, i) => i).filter(i => resolved[i].status !== 'empty' && resolved[i].status !== 'blocked' && !isSkipped(i));
+  const blockedIdx = parsed.map((_, i) => i).filter(i => resolved[i].status === 'blocked');
+  const count = (st: Status) => parsed.filter((_, i) => resolved[i].status === st && !isSkipped(i)).length;
+  const skippedCount = parsed.filter((_, i) => isSkipped(i)).length;
+  const room = capacity ? capacity.max - capacity.current : null;
+  const overCapacity = !!isSessionMode && room !== null && importableIdx.length > room;
+
+  const handleImport = () => {
+    if (blockedIdx.length > 0) {
+      alert(`มี ${blockedIdx.length} ชื่อที่ซ้ำทั้งชื่อและระดับมือ กรุณาเปลี่ยนชื่อให้ต่างกันก่อนนำเข้า`);
       return;
     }
-
-    if (valid.length > 0) {
-      onImport(valid.map(p => ({ name: p.name.trim(), rank: p.rank })), isSessionMode || false);
-    } else {
-       alert('ไม่พบรายชื่อให้นำเข้า');
-       return;
-    }
-
+    if (importableIdx.length === 0) { alert('ไม่พบรายชื่อให้นำเข้า'); return; }
+    onImport(importableIdx.map(i => ({ name: resolved[i].final, rank: parsed[i].rank })), isSessionMode || false);
     setText('');
     setParsed([]);
     setStep('paste');
@@ -159,7 +161,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
   };
 
   const handleClose = () => {
-    setText(''); setParsed([]); setStep('paste'); setNotSame(new Set()); setSameOk(new Set());
+    setText(''); setParsed([]); setStep('paste');
     onClose();
   };
 
@@ -265,84 +267,33 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
             </>
           ) : (
             <div className="space-y-2">
-              {unresolvedDups.length >= 2 && (
-                <button onClick={() => setSameOk(prev => { const n = new Set(prev); unresolvedDups.forEach(p => n.add(p.id)); return n; })}
-                  className="w-full px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm font-black hover:bg-amber-100">
-                  ✓ ยืนยันว่าเป็นคนเดียวกันทั้งหมด ({unresolvedDups.length} ชื่อที่ซ้ำสมาชิกเดิม)
-                </button>
-              )}
+              <div className="rounded-2xl bg-primary/5 px-4 py-3 text-sm font-bold text-primary flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="font-black">จะนำเข้า {importableIdx.length} คน</span>
+                {count('member') > 0 && <span className="text-xs text-on-surface/60">สมาชิกเดิม {count('member')}</span>}
+                {count('new') + count('renamed') > 0 && <span className="text-xs text-on-surface/60">คนใหม่ {count('new') + count('renamed')}</span>}
+                {skippedCount > 0 && <span className="text-xs text-on-surface/60">อยู่ในก๊วนวันนี้แล้ว (ข้าม) {skippedCount}</span>}
+                {isSessionMode && room !== null && <span className={cn('text-xs', overCapacity ? 'text-error font-black' : 'text-on-surface/60')}>เพิ่มได้อีก {Math.max(0, room)} คน (แพ็กเกจรองรับ {capacity!.max})</span>}
+              </div>
+              {overCapacity && <p className="text-xs font-black text-error px-1">⚠ เกินจำนวนที่แพ็กเกจรองรับ {importableIdx.length - room!} คน — ลบบางชื่อออก หรืออัปเกรดแพ็กเกจ</p>}
+              {blockedIdx.length > 0 && <p className="text-xs font-black text-error px-1">⚠ มี {blockedIdx.length} ชื่อที่ซ้ำทั้งชื่อและระดับมือ — ต้องเปลี่ยนชื่อ หรือถ้าเป็นคนละระดับให้เลือกระดับมือใหม่ก่อนนำเข้า</p>}
               {parsed.map((p, idx) => {
-                const isExisting = existingNames.some(n => n.trim().toLowerCase() === p.name.trim().toLowerCase());
-                const todayGamesOf = todayOf(p.name);
-                const todayAsk = isExisting && todayGamesOf !== undefined;
-                const dupAsk = isExisting && mode === 'line' && !todayAsk && !sameOk.has(p.id);
-                const similar = !isExisting && mode === 'line' && !notSame.has(p.id) ? similarNames(p.name, existingNames) : [];
+                const r = resolved[idx];
+                const skipped = isSkipped(idx);
                 return (
-                  <div key={p.id} className={cn("flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 rounded-2xl px-3 sm:px-4 py-3 transition-colors", isExisting ? "bg-primary/5" : "bg-background")}>
+                  <div key={p.id} className={cn("flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-2 rounded-2xl px-3 sm:px-4 py-3 transition-colors", r.status === 'blocked' ? 'bg-red-50 ring-1 ring-red-300' : r.status === 'member' ? 'bg-primary/5' : 'bg-background', skipped && 'opacity-60')}>
                     <span className="text-xs font-black text-on-surface/30 w-6 text-center shrink-0">{idx + 1}</span>
                     <div className="flex-1 min-w-0 basis-[calc(100%-6.5rem)] sm:basis-0">
                       <input
                         id={`imp-name-${p.id}`}
                         value={p.name}
                         onChange={e => updateName(p.id, e.target.value)}
-                        className={cn("w-full bg-transparent font-bold text-sm focus:outline-none truncate", isExisting ? "text-primary" : "text-on-surface")}
+                        className={cn("w-full bg-transparent font-bold text-sm focus:outline-none truncate", r.status === 'member' ? "text-primary" : "text-on-surface")}
                       />
-                      {todayAsk && (
-                        <div className="mt-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 space-y-1.5">
-                          <p className="text-xs font-black text-amber-700">
-                            “{p.name.trim()}” {todayGamesOf! > 0 ? `ตีไปแล้ว ${todayGamesOf} เกม` : 'อยู่ในก๊วนวันนี้แล้ว'} — ใช่คนเดียวกันไหม?
-                          </p>
-                          <p className="text-[11px] font-semibold text-amber-700/80">คนเดียวกัน = ข้ามชื่อนี้ (ข้อมูลเดิมไม่เปลี่ยน) · คนละคน = เพิ่มเป็นคนใหม่</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            <button onClick={() => setSameOk(prev => new Set(prev).add(p.id))} disabled={sameOk.has(p.id)}
-                              className={cn('px-3 py-1.5 rounded-lg text-xs font-black active:scale-95 transition-all', sameOk.has(p.id) ? 'bg-amber-200 text-amber-800' : 'bg-amber-500 text-white hover:bg-amber-600')}>
-                              {sameOk.has(p.id) ? '✓ คนเดียวกัน — ข้ามชื่อนี้' : '✓ คนเดียวกัน (ข้าม)'}
-                            </button>
-                            <button onClick={() => { const nn = uniqueName(p.name); updateName(p.id, nn); }}
-                              className="px-3 py-1.5 rounded-lg bg-white text-on-surface/70 text-xs font-black border border-on-surface/10 hover:bg-background">
-                              คนละคน — เพิ่มเป็น “{uniqueName(p.name)}”
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {isExisting && !dupAsk && !todayAsk && (
-                        <p className="text-xs font-semibold text-primary/60 leading-none">สมาชิกเดิมในระบบ ✓</p>
-                      )}
-                      {dupAsk && (
-                        <div className="mt-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 space-y-1.5">
-                          <p className="text-xs font-black text-amber-700">มีชื่อ “{p.name.trim()}” ในระบบแล้ว — ใช่คนเดียวกันไหม?</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            <button onClick={() => setSameOk(prev => new Set(prev).add(p.id))}
-                              className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-black hover:bg-amber-600 active:scale-95 transition-all">
-                              ✓ คนเดียวกัน
-                            </button>
-                            <button onClick={() => { const el = document.getElementById(`imp-name-${p.id}`) as HTMLInputElement | null; el?.focus(); el?.select(); }}
-                              className="px-3 py-1.5 rounded-lg bg-white text-on-surface/70 text-xs font-black border border-on-surface/10 hover:bg-background">
-                              คนละคน — เปลี่ยนชื่อ
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {!isExisting && mode === 'line' && similar.length === 0 && (
-                        <p className="text-xs font-semibold text-secondary leading-none">สมาชิกใหม่ (เกสต์) 👤</p>
-                      )}
-                      {similar.length > 0 && (
-                        <div className="mt-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 space-y-1.5">
-                          <p className="text-xs font-black text-amber-700">ชื่อใกล้เคียงสมาชิกเดิม — ใช่คนเดียวกันไหม?</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {similar.map(s => (
-                              <button key={s} onClick={() => mergeInto(p.id, s)}
-                                className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-black hover:bg-amber-600 active:scale-95 transition-all">
-                                ใช่ ใช้ “{s}”
-                              </button>
-                            ))}
-                            <button onClick={() => setNotSame(prev => new Set(prev).add(p.id))}
-                              className="px-3 py-1.5 rounded-lg bg-white text-on-surface/60 text-xs font-black border border-on-surface/10 hover:bg-background">
-                              ไม่ใช่ เป็นคนใหม่
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      {skipped && <p className="text-xs font-semibold text-on-surface/50 leading-none">{todayOf(idx)! > 0 ? `ตีไปแล้ว ${todayOf(idx)} เกม` : 'อยู่ในก๊วนวันนี้แล้ว'} — ข้าม</p>}
+                      {!skipped && r.status === 'member' && <p className="text-xs font-semibold text-primary/60 leading-none">สมาชิกเดิม ✓</p>}
+                      {!skipped && r.status === 'new' && <p className="text-xs font-semibold text-secondary leading-none">คนใหม่ 👤</p>}
+                      {!skipped && r.status === 'renamed' && <p className="text-xs font-bold text-amber-700 leading-snug">ชื่อซ้ำคนละระดับมือ → นำเข้าเป็น “{r.final}”</p>}
+                      {r.status === 'blocked' && <p className="text-xs font-black text-error leading-snug">ชื่อและระดับมือซ้ำกับคนอื่น — แก้ชื่อตรงนี้</p>}
                     </div>
                     {/* Rank selector */}
                     <div className="order-3 sm:order-none basis-full sm:basis-auto grid grid-cols-8 sm:grid-cols-5 gap-1 sm:shrink-0">
@@ -389,10 +340,10 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
               วิเคราะห์รายชื่อ →
             </button>
           ) : (
-            <button onClick={handleImport} disabled={importable.length === 0}
+            <button onClick={handleImport} disabled={importableIdx.length === 0 || blockedIdx.length > 0}
               className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-2xl font-black text-sm disabled:opacity-40 hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/20">
               <UserPlus size={16} />
-              นำเข้า {importable.length} คน{parsed.length > importable.length ? ` (ข้าม ${parsed.length - importable.length})` : ''}
+              นำเข้า {importableIdx.length} คน{skippedCount > 0 ? ` (ข้าม ${skippedCount})` : ''}
             </button>
           )}
         </div>

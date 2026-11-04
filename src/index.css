@@ -89,3 +89,14 @@
   scrollbar-width: none;
 }
 
+
+/* มือถือ: ช่องกรอกต้องมีตัวอักษร ≥16px ไม่งั้น iOS/Safari จะซูมหน้าจอเองตอนแตะพิมพ์ แล้วจอเลื่อน/ขยายไม่กลับ
+   (ยังซูมเองด้วยนิ้วได้ตามปกติ — ไม่ได้ล็อกการซูม) */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
