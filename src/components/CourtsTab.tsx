@@ -63,6 +63,8 @@ interface Props {
   onAddPlayer: (courtId: string, slotIndex: number, playerId: string) => void;
   onDeleteCourt: (courtId: string) => void;
   onAddSnack: (memberId: string, snacks: Snack[]) => void;
+  /** แพ็กเกจเปิดใช้สินค้าหรือไม่ (ไม่ส่ง = เปิด) */
+  productsOn?: boolean;
   onEditGame: (gameId: string, newShuttles: number) => void;
   onUndoGame: (gameId: string) => void;
   onUpdateCourt: React.Dispatch<React.SetStateAction<Court[]>>;
@@ -630,7 +632,7 @@ function GameRow({ game, onEditGame, onUndoGame, shuttlePrice }: {
 export function CourtsTab({
   members, courts, snacks, searchQuery, gameHistory,
   onAutoMatch, onStartGame, onResetCourt, onRemovePlayer, onAddPlayer,
-  onDeleteCourt, onAddSnack, onEditGame, onUndoGame, onUpdateCourt,
+  onDeleteCourt, onAddSnack, productsOn = true, onEditGame, onUndoGame, onUpdateCourt,
   minRankFilter, setMinRankFilter, maxRankFilter, setMaxRankFilter,
   onAddCourt,
   courtQueues, onAddCourtQueue, onRemoveCourtQueue, onUpdateCourtQueue, onMoveCourtQueue, onUseQueueSlot,
@@ -1194,13 +1196,13 @@ export function CourtsTab({
                       {m.balance > 0 && <span className="text-error font-black"> · ฿{m.balance.toFixed(0)}</span>}
                     </p>
                   </div>
-                  <button
+                  {productsOn && <button
                     onClick={e => { e.stopPropagation(); setPosTarget(m); }}
                     className="p-2 rounded-xl text-on-surface/30 hover:text-primary hover:bg-primary/5 transition-all md:opacity-0 md:group-hover:opacity-100 shrink-0"
                     title="ซื้อสินค้า"
                   >
                     <ShoppingCart size={16} />
-                  </button>
+                  </button>}
                   <button
                     onClick={e => { e.stopPropagation(); handleDoubleClick(m); }}
                     disabled={isActive}

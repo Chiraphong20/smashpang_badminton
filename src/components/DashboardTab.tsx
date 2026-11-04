@@ -59,6 +59,9 @@ interface Props {
   profiles?: Record<string, PlayerProfile>;
   promptPay?: { id: string; name: string };
   onChangePromptPay?: (v: { id: string; name: string }) => void;
+  /** แพ็กเกจเปิดใช้พร้อมเพย์ QR / สินค้า หรือไม่ (ไม่ส่ง = เปิด) */
+  promptPayOn?: boolean;
+  productsOn?: boolean;
   /** ผู้ช่วยแก้พร้อมเพย์ไม่ได้ */
   canEditPromptPay?: boolean;
 }
@@ -464,14 +467,15 @@ export function DashboardTab({
   onAddCourt, isSidebarCollapsed, onCheckIn, onRemove, onResetDay,
   onClearBoard, onUpdateGame,
   isSyncing, onImportLine,
-  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay, onChangePromptPay, canEditPromptPay = true
+  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay, onChangePromptPay, canEditPromptPay = true, promptPayOn = true, productsOn = true
 }: Props) {
   const [showPayQr, setShowPayQr] = useState(false);
   const [rankPickId, setRankPickId] = useState<string | null>(null);
   // เก็บแค่ id ไม่เก็บ snapshot ของ Member ทั้งก้อน — เดี๋ยว modal จะได้อ่านข้อมูลสดจาก currentMembers
   // เสมอ (ไม่งั้นพอลบสินค้า/แก้ไขอะไรระหว่างเปิด modal อยู่ จะไม่เห็นการเปลี่ยนแปลงจนกว่าจะปิดเปิดใหม่)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [posTarget, setPosTarget] = useState<Member | null>(null);
+  const [posTargetRaw, setPosTarget] = useState<Member | null>(null);
+  const posTarget = productsOn ? posTargetRaw : null;
   // "เสียน้ำให้เพื่อน": เลือกคนจ่าย (A) ก่อน แล้วค่อยเลือกคนรับ (B)
   const [treatStep, setTreatStep] = useState<'payer' | 'recipient' | null>(null);
   const [treatPayer, setTreatPayer] = useState<Member | null>(null);
@@ -835,11 +839,11 @@ export function DashboardTab({
             <div className="flex flex-wrap items-center gap-3">
               <span className="px-4 py-1.5 rounded-full text-white text-sm font-black shadow-sm" style={{ backgroundColor: t.color }}>{t.emoji} โหมด{MODE_LABELS[mode]}</span>
               <p className="text-sm font-bold flex-1 min-w-[12rem]" style={{ color: t.color }}>{desc}</p>
-              <button onClick={() => setShowPayQr(true)}
+              {promptPayOn && <button onClick={() => setShowPayQr(true)}
                 className="px-5 py-2.5 rounded-2xl text-white text-sm font-black shadow-lg ring-4 ring-white/70 hover:scale-105 active:scale-95 transition-transform flex items-center gap-2"
                 style={{ background: 'linear-gradient(135deg, #1a4f9c, #0ea5e9)', boxShadow: '0 8px 20px -6px rgba(14,165,233,.65)' }}>
                 <span className="text-base">📱</span> สแกนจ่าย
-              </button>
+              </button>}
               {onSwitchMode && (
                 <div className="relative">
                   <button onClick={() => setModeMenu(v => !v)}
@@ -1080,7 +1084,7 @@ export function DashboardTab({
                         <UserPlus size={14} /> {settled ? 'กลับมาตีใหม่' : 'เช็คอิน'}
                       </button>
                     )}
-                    {!settled && (
+                    {!settled && productsOn && (
                       <button onClick={() => setPosTarget(m)}
                         className="flex-1 py-2.5 rounded-xl bg-tertiary/10 text-tertiary font-black text-xs flex items-center justify-center gap-1.5">
                         <ShoppingCart size={14} /> ซื้อสินค้า
@@ -1282,7 +1286,7 @@ export function DashboardTab({
                     (!isReadOnly && !isSettled) ? "hover:bg-tertiary/5 cursor-pointer" : ""
                   )}
                   onClick={(e) => {
-                    if (!isReadOnly && !isSettled) {
+                    if (!isReadOnly && !isSettled && productsOn) {
                       e.stopPropagation();
                       setPosTarget(m);
                     }
@@ -1472,7 +1476,7 @@ export function DashboardTab({
       <AnimatePresence>
         {activeCheckoutMember && (
           <CheckoutModal
-            promptPay={promptPay}
+            promptPay={promptPayOn ? promptPay : undefined}
             member={activeCheckoutMember}
             initialOthers={activeCheckoutOthers}
             gameHistory={currentGames}

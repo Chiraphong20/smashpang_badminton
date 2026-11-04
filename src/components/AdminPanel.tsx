@@ -3,9 +3,9 @@ import { format } from 'date-fns';
 import { userApi, getUserToken, setUserToken, clearUserToken, enterGroupAsOwner, groupUrl } from '../lib/api';
 
 interface AUser { id: string; email: string | null; username: string | null; displayName: string; role: string; status: string; groupCount: number; createdAt: number; planId: string | null; planExpiresAt: number | null; sessionsThisMonth: number }
-interface APlan { id: string; name: string; price: string; isDefault: boolean; maxPlayers: number | null; maxSessionsMonth: number | null; maxGroups: number | null; modes: string[]; features: { listing: boolean; queueScreen: boolean }; userCount: number }
+interface APlan { id: string; name: string; price: string; isDefault: boolean; maxPlayers: number | null; maxSessionsMonth: number | null; maxGroups: number | null; modes: string[]; features: { listing: boolean; queueScreen: boolean; signup: boolean; promptPay: boolean; history: boolean; products: boolean }; userCount: number }
 const MODE_OPTS: [string, string][] = [['perGame', 'นับเกม'], ['buffet', 'บุฟเฟต์'], ['split', 'หารเท่า'], ['fun', 'สุ่มเพื่อน']];
-const FEATURE_OPTS: [keyof APlan['features'], string][] = [['listing', 'ประกาศหาสมาชิก (หน้าหาก๊วน)'], ['queueScreen', 'หน้าคิวสาธารณะ / QR']];
+const FEATURE_OPTS: [keyof APlan['features'], string][] = [['listing', 'ประกาศหาสมาชิก (หน้าหาก๊วน)'], ['queueScreen', 'หน้าคิวสาธารณะ / QR'], ['signup', 'ลงชื่อล่วงหน้า (ลิงก์ลงชื่อ)'], ['promptPay', 'พร้อมเพย์ QR เก็บเงิน'], ['history', 'ประวัติและสถิติ/รายงาน'], ['products', 'สินค้า (ขนม/เครื่องดื่ม)']];
 const limitText = (n: number | null) => (n == null ? 'ไม่จำกัด' : String(n));
 interface AGroup { id: string; name: string; status: string; createdAt: number; ownerName: string | null; ownerEmail: string | null }
 interface Overview { users: number; pendingUsers: number; suspendedUsers: number; groups: number; suspendedGroups: number }
@@ -202,7 +202,7 @@ function PlanEditor({ plan, onClose, onSave }: { plan: APlan | null; onClose: ()
   const [maxSessions, setMaxSessions] = useState(plan?.maxSessionsMonth == null ? '' : String(plan.maxSessionsMonth));
   const [maxGroups, setMaxGroups] = useState(plan?.maxGroups == null ? '' : String(plan.maxGroups));
   const [modes, setModes] = useState<string[]>(plan?.modes ?? MODE_OPTS.map(o => o[0]));
-  const [features, setFeatures] = useState(plan?.features ?? { listing: true, queueScreen: true });
+  const [features, setFeatures] = useState(plan?.features ?? { listing: true, queueScreen: true, signup: true, promptPay: true, history: true, products: true });
   const field = 'w-full px-3 py-2.5 bg-background rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary/30';
   const toggleMode = (m: string) => setModes(v => (v.includes(m) ? v.filter(x => x !== m) : [...v, m]));
   const save = () => {

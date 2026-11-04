@@ -8,7 +8,7 @@ import { pool } from './db.js';
 // ค่า NULL ในช่อง max_* = ไม่จำกัด
 
 export const ALL_MODES = ['perGame', 'buffet', 'split', 'fun'];
-export const FEATURE_KEYS = ['listing', 'queueScreen']; // ประกาศหาสมาชิก · หน้าคิวสาธารณะ
+export const FEATURE_KEYS = ['listing', 'queueScreen', 'signup', 'promptPay', 'history', 'products']; // ประกาศหาสมาชิก · หน้าคิวสาธารณะ · ลงชื่อล่วงหน้า · พร้อมเพย์ QR · ประวัติ/รายงาน · สินค้า
 
 const BKK_OFFSET = 7 * 60 * 60 * 1000;
 // เริ่มต้นเดือนตามเวลาไทย (ms)
@@ -20,7 +20,7 @@ export function monthStartMs(now = Date.now()) {
 const UNLIMITED = {
   id: 'unlimited', name: 'ไม่จำกัด', price: '', isDefault: false,
   maxPlayers: null, maxSessionsMonth: null, maxGroups: null,
-  modes: ALL_MODES, features: { listing: true, queueScreen: true },
+  modes: ALL_MODES, features: Object.fromEntries(FEATURE_KEYS.map(k => [k, true])),
 };
 
 const parseJson = (t, fb) => { try { return JSON.parse(t) ?? fb; } catch { return fb; } };

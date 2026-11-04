@@ -99,6 +99,7 @@ export function mountGroupSignup(r) {
     const b = req.body || {};
     const [[g]] = await pool.query('SELECT owner_id FROM `groups` WHERE id = ?', [gid]);
     const { plan } = await effectivePlan(g?.owner_id);
+    if (b.open && !plan.features.signup) return res.status(403).json({ error: 'feature_disabled', message: `แพ็กเกจ "${plan.name}" ไม่รองรับการลงชื่อล่วงหน้า` });
     let capacity = Math.floor(Number(b.capacity));
     if (!Number.isFinite(capacity) || capacity < 1) return res.status(400).json({ error: 'invalid_capacity' });
     if (plan.maxPlayers != null) capacity = Math.min(capacity, plan.maxPlayers);

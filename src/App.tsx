@@ -1511,7 +1511,9 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     });
   };
 
-  const tabs = [
+  const feat = plan?.plan.features;
+  const productsOn = feat?.products !== false, promptPayOn = feat?.promptPay !== false, historyOn = feat?.history !== false, signupOn = feat?.signup !== false;
+  const allTabs = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'หน้าหลัก', hint: 'ดูยอดเงินและคนที่มาตีวันนี้' },
     { id: 'courts', icon: Trophy, label: 'จัดคอร์ท', hint: 'จัดคนลงสนาม เริ่ม/จบเกม' },
     { id: 'logs', icon: History, label: 'ประวัติ', hint: 'เกมที่ตีไปแล้ว' },
@@ -1519,6 +1521,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     { id: 'members', icon: Users, label: 'สมาชิก', hint: 'เพิ่ม/แก้ไขรายชื่อคนในก๊วน' },
     { id: 'settings', icon: Settings, label: 'ตั้งค่า', hint: 'ราคา ค่าสนาม ประกาศหาสมาชิก' },
   ];
+  const tabs = allTabs.filter(t => historyOn || (t.id !== 'logs' && t.id !== 'stats'));
 
   return (
     <>
@@ -1772,6 +1775,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     profiles={playerProfiles}
                     promptPay={promptPay}
                     onChangePromptPay={setPromptPay}
+                    promptPayOn={promptPayOn}
+                    productsOn={productsOn}
                     canEditPromptPay={!isHelper}
                     members={members} courts={courts} snacks={snacks} 
                     paymentHistory={paymentHistory} gameHistory={gameHistory}
@@ -1798,7 +1803,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     sessionStartDate={sessionStartDate}
                   />
                 )}
-                {activeTab === 'logs' && (
+                {activeTab === 'logs' && historyOn && (
                   <LogsTab
                     gameHistory={gameHistory}
                     sessionHistory={sessionHistory}
@@ -1811,7 +1816,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     profiles={playerProfiles}
                   />
                 )}
-                {activeTab === 'stats' && (
+                {activeTab === 'stats' && historyOn && (
                   <StatsTab
                     members={members}
                     gameHistory={gameHistory}
@@ -1867,6 +1872,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     onRemoveCourtQueue={removeFromCourtQueue}
                     onUpdateCourtQueue={updateCourtQueueSlot}
                     onMoveCourtQueue={moveCourtQueueSlot}
+                    productsOn={productsOn}
                     sessionMode={activeMode}
                     askScore={activeMode === 'fun' || modeConfig.trackScore}
                     shuttleChargePerShuttle={effShuttlePrice}
@@ -1877,10 +1883,10 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     isHelper={isHelper}
                     groupName={groupName}
                     onRename={onRename}
-                    onImportSignups={importSignups}
+                    onImportSignups={signupOn ? importSignups : undefined}
                     plan={plan}
                     promptPay={promptPay}
-                    onChangePromptPay={setPromptPay}
+                    onChangePromptPay={promptPayOn ? setPromptPay : undefined}
                     courtFeePerPerson={courtFeePerPerson}
                     setCourtFeePerPerson={setCourtFeePerPerson}
                     shuttlePrice={shuttlePrice}

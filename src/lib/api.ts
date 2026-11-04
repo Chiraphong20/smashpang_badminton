@@ -156,7 +156,7 @@ export interface PlanLimits {
   maxSessionsMonth: number | null;  // จำนวนครั้งที่จัดก๊วนต่อเดือน
   maxGroups: number | null;
   modes: SessionMode[];
-  features: { listing: boolean; queueScreen: boolean };
+  features: { listing: boolean; queueScreen: boolean; signup: boolean; promptPay: boolean; history: boolean; products: boolean };
 }
 export interface PlanInfo {
   plan: PlanLimits;
