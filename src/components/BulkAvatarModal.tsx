@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, ImagePlus, Link2, Trash2, Check, Clipboard } from 'lucide-react';
+import { X, ImagePlus, Link2, Trash2, Check, Clipboard, Move } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Member, PlayerProfile } from '../types';
-import { resizeToAvatar, urlToAvatar, readPasted } from '../lib/image';
+import { toWorkingImage, urlToAvatar, readPasted } from '../lib/image';
+import { AvatarCropper } from './AvatarCropper';
 
-interface Item { key: string; avatar: string; label: string; memberId: string }
+interface Item { key: string; avatar: string; raw: string; label: string; memberId: string }
 
 interface Props {
   members: Member[];
@@ -23,6 +24,7 @@ export function BulkAvatarModal({ members, profiles, onSave, onClose }: Props) {
   const [errors, setErrors] = useState<string[]>([]);
   const [links, setLinks] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [cropKey, setCropKey] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
   const membersRef = useRef(members);
@@ -41,14 +43,14 @@ export function BulkAvatarModal({ members, profiles, onSave, onClose }: Props) {
     return part.length === 1 ? part[0].id : '';
   };
 
-  const addAvatars = (list: { avatar: string; label: string }[]) => {
+  const addAvatars = (list: { avatar: string; raw: string; label: string }[]) => {
     setItems(prev => {
       const taken = new Set(prev.map(i => i.memberId).filter(Boolean));
       const next = [...prev];
       for (const a of list) {
         const id = guess(a.label, taken);
         if (id) taken.add(id);
-        next.push({ key: 'i' + (++seq.current), avatar: a.avatar, label: a.label, memberId: id });
+        next.push({ key: 'i' + (++seq.current), avatar: a.avatar, raw: a.raw, label: a.label, memberId: id });
       }
       return next;
     });
@@ -58,10 +60,10 @@ export function BulkAvatarModal({ members, profiles, onSave, onClose }: Props) {
     const imgs = files.filter(f => f.type.startsWith('image/'));
     if (!imgs.length) { setErrors(e => [...e, 'ไม่พบไฟล์รูปภาพ']); return; }
     setBusy(b => b + imgs.length);
-    const ok: { avatar: string; label: string }[] = [];
+    const ok: { avatar: string; raw: string; label: string }[] = [];
     let bad = 0;
     for (const f of imgs) {
-      try { ok.push({ avatar: await resizeToAvatar(f), label: f.name || 'รูปที่วาง' }); } catch { bad++; }
+      try { const raw = await toWorkingImage(f); ok.push({ raw, avatar: await urlToAvatar(raw, 160), label: f.name || 'รูปที่วาง' }); } catch { bad++; }
       setBusy(b => b - 1);
     }
     if (ok.length) addAvatars(ok);
@@ -71,10 +73,10 @@ export function BulkAvatarModal({ members, profiles, onSave, onClose }: Props) {
   const addUrls = async (urls: string[]) => {
     if (!urls.length) return;
     setBusy(b => b + urls.length);
-    const ok: { avatar: string; label: string }[] = [];
+    const ok: { avatar: string; raw: string; label: string }[] = [];
     const failed: string[] = [];
     await Promise.all(urls.map(async u => {
-      try { ok.push({ avatar: await urlToAvatar(u), label: decodeURIComponent(u.split('?')[0].split('/').pop() || 'รูปจากลิงก์') }); }
+      try { const raw = await toWorkingImage(u); ok.push({ raw, avatar: await urlToAvatar(raw, 160), label: decodeURIComponent(u.split('?')[0].split('/').pop() || 'รูปจากลิงก์') }); }
       catch { failed.push(u); }
       setBusy(b => b - 1);
     }));
@@ -153,7 +155,10 @@ export function BulkAvatarModal({ members, profiles, onSave, onClose }: Props) {
               <p className="text-xs font-black text-on-surface/50">{items.length} รูป · จับคู่แล้ว {assigned.length}{items.length - assigned.length > 0 ? ` · ยังไม่เลือกคน ${items.length - assigned.length}` : ''}</p>
               {items.map(it => (
                 <div key={it.key} className={cn('flex items-center gap-3 rounded-2xl p-2.5 border', it.memberId ? 'border-primary/30 bg-primary/5' : 'border-on-surface/10 bg-white')}>
-                  <img src={it.avatar} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                  <button onClick={() => setCropKey(it.key)} className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 group" aria-label="ขยับ/ซูมรูป" title="แตะเพื่อขยับ/ซูมรูป">
+                    <img src={it.avatar} alt="" className="w-full h-full object-cover" />
+                    <span className="absolute inset-x-0 bottom-0 bg-black/55 text-white text-[10px] font-black flex items-center justify-center gap-0.5 py-0.5"><Move size={10} /> ขยับ</span>
+                  </button>
                   <div className="flex-1 min-w-0 space-y-1">
                     <p className="text-[11px] font-semibold text-on-surface/40 truncate">{it.label}</p>
                     <select value={it.memberId} onChange={e => setMember(it.key, e.target.value)}
@@ -181,6 +186,9 @@ export function BulkAvatarModal({ members, profiles, onSave, onClose }: Props) {
           </button>
         </div>
       </div>
+      {cropKey && (() => { const it = items.find(x => x.key === cropKey); return it ? (
+        <AvatarCropper src={it.raw} onCancel={() => setCropKey(null)} onDone={a => { setItems(prev => prev.map(x => x.key === cropKey ? { ...x, avatar: a } : x)); setCropKey(null); }} />
+      ) : null; })()}
     </div>
   );
 }

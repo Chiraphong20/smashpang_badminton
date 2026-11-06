@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { X, Trophy, Flame, CalendarDays, Wallet, Users, Pencil, Camera, Phone, MessageCircle, StickyNote, Trash2 } from 'lucide-react';
+import { X, Trophy, Flame, CalendarDays, Wallet, Users, Pencil, Camera, Move, Phone, MessageCircle, StickyNote, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Member, GameRecord, SessionRecord, PlayerProfile, RANK_LEVEL_LABELS } from '../types';
 import { Avatar } from './Avatar';
-import { resizeToAvatar, urlToAvatar, readPasted } from '../lib/image';
+import { toWorkingImage, readPasted } from '../lib/image';
+import { AvatarCropper } from './AvatarCropper';
 
 interface Props {
   playerId: string;
@@ -34,15 +35,18 @@ export function PlayerProfileModal({ playerId, members, gameHistory, sessionHist
   const pickImage = async (f?: File) => {
     if (!f) return;
     setImgError('');
-    try { const url = await resizeToAvatar(f); setDraft(d => ({ ...d, avatar: url })); }
+    try { const raw = await toWorkingImage(f); setRawSrc(raw); setCropSrc(raw); }
     catch { setImgError('ใช้ไฟล์รูปภาพเท่านั้น'); }
   };
+  // รูปต้นฉบับล่าสุดที่เลือก (ไว้ขยับ/ซูมซ้ำได้) และรูปที่กำลังเปิดในหน้าต่างขยับ/ซูม
+  const [rawSrc, setRawSrc] = useState('');
+  const [cropSrc, setCropSrc] = useState('');
 
   const [imgUrl, setImgUrl] = useState('');
   const [imgBusy, setImgBusy] = useState(false);
   const pickUrl = async (u: string) => {
     setImgError(''); setImgBusy(true);
-    try { const url = await urlToAvatar(u.trim()); setDraft(d => ({ ...d, avatar: url })); setImgUrl(''); }
+    try { const raw = await toWorkingImage(u.trim()); setRawSrc(raw); setCropSrc(raw); setImgUrl(''); }
     catch { setImgError('ดึงรูปจากลิงก์นี้ไม่ได้ (เว็บนั้นไม่อนุญาต) — ลองคัดลอกตัวรูปมาวาง (Ctrl+V) หรือบันทึกรูปแล้วอัปโหลด'); }
     setImgBusy(false);
   };
@@ -169,7 +173,12 @@ export function PlayerProfileModal({ playerId, members, gameHistory, sessionHist
                 </div>
                 <p className="text-[11px] font-semibold text-on-surface/40">หรือคัดลอกรูปมาแล้วกด Ctrl+V ได้เลย</p>
               </div>
-              {draft.avatar && <button onClick={() => setDraft(d => { const { avatar, ...rest } = d; return rest; })} className="flex items-center gap-1.5 text-xs font-bold text-red-500"><Trash2 size={13} /> ลบรูปโปรไฟล์</button>}
+              {draft.avatar && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <button onClick={() => setCropSrc(rawSrc || draft.avatar!)} className="flex items-center gap-1.5 text-xs font-black text-primary"><Move size={13} /> ขยับ/ซูมรูป</button>
+                  <button onClick={() => { setDraft(d => { const { avatar, ...rest } = d; return rest; }); setRawSrc(''); }} className="flex items-center gap-1.5 text-xs font-bold text-red-500"><Trash2 size={13} /> ลบรูปโปรไฟล์</button>
+                </div>
+              )}
               {([['nickname', 'ชื่อเล่น', 'เช่น เบส', 30], ['phone', 'เบอร์โทร', '08x-xxx-xxxx', 30], ['lineId', 'LINE ID', 'เช่น bass_badminton', 40]] as const).map(([k, label, ph, max]) => (
                 <label key={k} className="block space-y-1">
                   <span className="text-xs font-bold text-on-surface/50">{label}</span>
@@ -259,6 +268,7 @@ export function PlayerProfileModal({ playerId, members, gameHistory, sessionHist
           </div>
         </div>
       </div>
+      {cropSrc && <AvatarCropper src={cropSrc} onCancel={() => setCropSrc('')} onDone={a => { setDraft(d => ({ ...d, avatar: a })); setCropSrc(''); }} />}
     </div>
   );
 }
