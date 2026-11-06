@@ -24,6 +24,7 @@ const cleanName = (raw: string): ParsedName | null => {
     .replace(/\s*[(（]?\s*\d{1,2}\s*[:.]\s*\d{2}\s*(น\.?|นาฬิกา)?\s*[)）]?.*$/u, '') // เวลา 18:00 / 18.30 / 17.30น. และคำที่ตามหลัง
     .replace(/\s*[(（].*?[)）].*$/u, '')                                              // หมายเหตุในวงเล็บ
     .replace(/ขอแจม.*$/u, '')                                                         // "ป่องขอแจมด้วยคนครับ" → "ป่อง"
+    .replace(/\s+(?:ไป)?(?:ถ้า|หาก).*$/u, '')                                        // เงื่อนไขท้ายชื่อ "น้อย ไปถ้าฝนไม่ตก" → "น้อย"                                                         // "ป่องขอแจมด้วยคนครับ" → "ป่อง"
     .replace(/\s+(ค่ะ|คะ|ครับ|นะ|เจ้า|จ้า).*$/u, '')                                  // คำลงท้ายที่แยกด้วยช่องว่าง
     .replace(/(ค่ะ|ครับ)$/u, '')
     .replace(/[\s.,:;\-–—_~*]+$/u, '')
@@ -37,7 +38,8 @@ const cleanName = (raw: string): ParsedName | null => {
 
 export function parseLineNames(text: string): ParsedName[] {
   const lines = text.split(/\r?\n/);
-  const numbered = /^\s*\d{1,3}\s*(?:[.):\-]|\s)\s*(.*)$/u;
+  // เลขข้อตามด้วยตัวคั่น (. ) : - หรือช่องว่าง) หรือติดกับชื่อเลย เช่น "14มายด์" · "ๅ" คือคนพิมพ์เลข 1 ผิดแป้น (พบบ่อยในไลน์)
+  const numbered = /^\s*(?:\d{1,3}|ๅ)\s*(?:[.):\-]\s*|\s+|(?=[\p{L}]))(.*)$/u;
   const hasNumbers = lines.some(l => numbered.test(l) && (numbered.exec(l)![1] || '').trim());
 
   const out: ParsedName[] = [];
