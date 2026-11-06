@@ -185,6 +185,15 @@ export function PlayerPicker({ members, currentPlayerId, onSelect, onClose, posi
 // ── Player Modal Picker (กลางจอ · เลือกได้หลายคนทีเดียว) ──────────────────────────
 // ใช้ตอนเอาคนลงคอร์ด: แตะช่องว่างแล้วเลือกชื่อหลายคนในหน้าต่างเดียว (สูงสุดเท่าช่องว่าง) แล้วกดตกลง
 // ไม่เด้งคีย์บอร์ดบนมือถือเอง (จอไม่ขยับ) — แตะช่องค้นหาเองเมื่ออยากพิมพ์
+// กลุ่มระดับมือสำหรับตัวกรองในหน้าต่างเลือกผู้เล่น
+const RANK_GROUPS: { id: string; label: string; ranks: Rank[] }[] = [
+  { id: 'P', label: 'P / N', ranks: RANKS.slice(0, 4) },
+  { id: 'S', label: 'S', ranks: RANKS.slice(4, 7) },
+  { id: 'S-', label: 'S-', ranks: RANKS.slice(7, 10) },
+  { id: 'BG', label: 'BG', ranks: RANKS.slice(10, 13) },
+  { id: 'VIP', label: 'VIP', ranks: RANKS.slice(13) },
+];
+
 export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = null, max, slots, onConfirm, onRemove, onClose }: {
   members: Member[];
   /** ผู้เล่นปัจจุบันในช่อง 1-4 ของคอร์ด (ช่อง 1-2 = ทีม A, 3-4 = ทีม B) ใช้โชว์ว่าคนที่ติ๊กจะอยู่ทีมไหนกับใคร */
@@ -208,10 +217,14 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
     if (typeof window !== 'undefined' && window.matchMedia?.('(pointer: fine)').matches) searchRef.current?.focus();
   }, []);
 
-  const list = members
-    .filter(m => (m.status === 'waiting' || m.id === currentPlayerId) && m.name.toLowerCase().includes(q.trim().toLowerCase()))
+  // ตัวกรองระดับมือ (เลือกได้หลายกลุ่ม · ไม่เลือก = ทั้งหมด)
+  const [rankGroups, setRankGroups] = useState<string[]>([]);
+  const pool = members.filter(m => m.status === 'waiting' || m.id === currentPlayerId);
+  const groupOf = (r: Rank) => RANK_GROUPS.find(g => g.ranks.includes(r))?.id ?? 'P';
+  const list = pool
+    .filter(m => m.name.toLowerCase().includes(q.trim().toLowerCase()) && (rankGroups.length === 0 || rankGroups.includes(groupOf(m.rank))))
     .sort((a, b) => (a.gamesPlayed !== b.gamesPlayed ? a.gamesPlayed - b.gamesPlayed : a.checkInTime - b.checkInTime));
-  useEffect(() => { setHi(0); }, [q]);
+  useEffect(() => { setHi(0); }, [q, rankGroups]);
 
   const toggle = (id: string) => {
     if (single) { onConfirm([id]); return; }
@@ -230,11 +243,11 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
     <div className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-4" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div className="absolute inset-0 bg-on-surface/55 backdrop-blur-sm" onClick={onClose} />
       <motion.div initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.14 }}
-        className="relative z-10 bg-white rounded-[1.75rem] shadow-2xl w-full max-w-md flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+        className="relative z-10 bg-white rounded-[1.75rem] shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh] sm:h-[min(46rem,92vh)]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-on-surface/5 shrink-0">
           <div className="flex-1 min-w-0">
             <h3 className="font-headline font-black text-lg leading-tight">{single ? 'เลือกผู้เล่น' : `เลือกผู้เล่นลงคอร์ด`}</h3>
-            <p className="text-xs font-bold text-on-surface/45">{single ? 'แตะชื่อเพื่อเลือก' : `แตะเลือกได้สูงสุด ${max} คน · เลือกแล้ว ${picked.length}/${max}`}</p>
+            <p className="text-xs font-bold text-on-surface/45">{single ? 'แตะชื่อเพื่อเลือก' : `แตะเลือกได้สูงสุด ${max} คน · เลือกแล้ว ${picked.length}/${max}`} · เรียงจากตีน้อย → มาก</p>
           </div>
           <button onClick={onClose} className="p-2 -mr-2 rounded-full hover:bg-background" aria-label="ปิด"><X size={20} /></button>
         </div>
@@ -269,6 +282,22 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
               }}
               className="w-full pl-9 pr-3 py-2.5 bg-background rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20" />
           </div>
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar pt-2.5 pb-0.5" role="group" aria-label="กรองระดับมือ">
+            <button onClick={() => setRankGroups([])}
+              className={cn('shrink-0 px-3 py-1.5 rounded-full text-xs font-black border transition-colors', rankGroups.length === 0 ? 'bg-primary text-white border-primary' : 'bg-white text-on-surface/60 border-on-surface/10 hover:border-primary/40')}>
+              ทั้งหมด {pool.length}
+            </button>
+            {RANK_GROUPS.map(g => {
+              const n = pool.filter(m => g.ranks.includes(m.rank)).length;
+              const on = rankGroups.includes(g.id);
+              return (
+                <button key={g.id} disabled={n === 0 && !on} onClick={() => setRankGroups(prev => on ? prev.filter(x => x !== g.id) : [...prev, g.id])} aria-pressed={on}
+                  className={cn('shrink-0 px-3 py-1.5 rounded-full text-xs font-black border transition-colors disabled:opacity-35', on ? 'bg-primary text-white border-primary' : 'bg-white text-on-surface/60 border-on-surface/10 hover:border-primary/40')}>
+                  {g.label} <span className="opacity-70">{n}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto mt-2 pb-1">
           {currentPlayerId && onRemove && (
@@ -276,7 +305,7 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
               <X size={15} /><span className="text-sm font-black">นำออกจากช่องนี้</span>
             </button>
           )}
-          {list.length === 0 && <p className="text-center py-8 text-sm text-on-surface/30 font-bold">ไม่มีผู้เล่นที่รอลงสนาม</p>}
+          {list.length === 0 && <p className="text-center py-8 text-sm text-on-surface/30 font-bold">{pool.length === 0 ? 'ไม่มีผู้เล่นที่รอลงสนาม' : 'ไม่พบผู้เล่นตามตัวกรอง'}</p>}
           {list.map((m, i) => {
             const idx = picked.indexOf(m.id);
             const on = idx >= 0;
@@ -287,8 +316,12 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
                 <PlayerBadge rank={m.rank} name={m.name} profile={profiles[m.id]} className="w-10 h-10 rounded-xl text-sm" />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold truncate">{m.name}{m.id === currentPlayerId && <span className="ml-2 text-xs text-primary font-black">อยู่ช่องนี้</span>}</p>
-                  <p className="text-xs text-on-surface/40">{RANK_LEVEL_LABELS[m.rank]}{RANK_LEVEL_LABELS[m.rank] ? ' · ' : ''}{m.gamesPlayed} เกม</p>
+                  <p className="text-xs text-on-surface/40">{RANK_LEVEL_LABELS[m.rank]}{RANK_LEVEL_LABELS[m.rank] ? ' · ' : ''}ระดับ {m.rank}</p>
                 </div>
+                <span className="shrink-0 text-right leading-none" title="จำนวนเกมที่ตีวันนี้">
+                  <span className={cn('block font-headline font-black text-xl', m.gamesPlayed === 0 ? 'text-emerald-600' : 'text-on-surface/70')}>{m.gamesPlayed}</span>
+                  <span className="block text-[10px] font-bold text-on-surface/40 mt-0.5">เกม</span>
+                </span>
                 {!single && (
                   <span className={cn('h-7 min-w-7 px-1.5 rounded-full flex items-center justify-center text-xs font-black shrink-0 border-2',
                     !on ? 'border-on-surface/15 text-transparent w-7' : teamOfPicked(idx) === 'B' ? 'bg-orange-500 border-orange-500 text-white' : teamOfPicked(idx) === 'A' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-primary border-primary text-white')}>
