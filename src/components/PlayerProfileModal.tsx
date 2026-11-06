@@ -4,7 +4,7 @@ import { X, Trophy, Flame, CalendarDays, Wallet, Users, Pencil, Camera, Phone, M
 import { cn } from '../lib/utils';
 import { Member, GameRecord, SessionRecord, PlayerProfile, RANK_LEVEL_LABELS } from '../types';
 import { Avatar } from './Avatar';
-import { resizeToAvatar } from '../lib/image';
+import { resizeToAvatar, urlToAvatar, readPasted } from '../lib/image';
 
 interface Props {
   playerId: string;
@@ -37,6 +37,27 @@ export function PlayerProfileModal({ playerId, members, gameHistory, sessionHist
     try { const url = await resizeToAvatar(f); setDraft(d => ({ ...d, avatar: url })); }
     catch { setImgError('ใช้ไฟล์รูปภาพเท่านั้น'); }
   };
+
+  const [imgUrl, setImgUrl] = useState('');
+  const [imgBusy, setImgBusy] = useState(false);
+  const pickUrl = async (u: string) => {
+    setImgError(''); setImgBusy(true);
+    try { const url = await urlToAvatar(u.trim()); setDraft(d => ({ ...d, avatar: url })); setImgUrl(''); }
+    catch { setImgError('ดึงรูปจากลิงก์นี้ไม่ได้ (เว็บนั้นไม่อนุญาต) — ลองคัดลอกตัวรูปมาวาง (Ctrl+V) หรือบันทึกรูปแล้วอัปโหลด'); }
+    setImgBusy(false);
+  };
+  // ตอนแก้ไขโปรไฟล์: คัดลอกรูปหรือลิงก์รูปมาแล้ว Ctrl+V วางได้เลย (ลิงก์ไม่จับตอนพิมพ์ในช่องข้อความ)
+  useEffect(() => {
+    if (!editing) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const { files, urls } = readPasted(e.clipboardData);
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (files.length) { e.preventDefault(); pickImage(files[0]); }
+      else if (urls.length && tag !== 'INPUT' && tag !== 'TEXTAREA') { e.preventDefault(); pickUrl(urls[0]); }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [editing]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { if (editing) setEditing(false); else onClose(); } };
@@ -138,6 +159,16 @@ export function PlayerProfileModal({ playerId, members, gameHistory, sessionHist
             <div className="space-y-3 rounded-2xl bg-background p-4">
               <p className="text-sm font-black">แก้ไขโปรไฟล์</p>
               {imgError && <p className="text-xs font-bold text-red-500">{imgError}</p>}
+              <div className="space-y-1.5">
+                <span className="text-xs font-bold text-on-surface/50">รูปโปรไฟล์</span>
+                <div className="flex gap-2">
+                  <button onClick={() => fileRef.current?.click()} className="px-3 py-2 rounded-xl bg-white border border-on-surface/10 font-black text-xs text-primary flex items-center gap-1.5"><Camera size={14} /> เลือกรูป</button>
+                  <input value={imgUrl} onChange={e => setImgUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && imgUrl.trim()) { e.preventDefault(); pickUrl(imgUrl); } }} placeholder="วางลิงก์รูป https://…"
+                    className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-on-surface/10 font-semibold text-xs focus:outline-none focus:ring-2 focus:ring-primary/25" />
+                  <button disabled={!imgUrl.trim().startsWith('http') || imgBusy} onClick={() => pickUrl(imgUrl)} className="px-3 py-2 rounded-xl bg-primary/10 text-primary font-black text-xs disabled:opacity-40">{imgBusy ? '…' : 'ใช้'}</button>
+                </div>
+                <p className="text-[11px] font-semibold text-on-surface/40">หรือคัดลอกรูปมาแล้วกด Ctrl+V ได้เลย</p>
+              </div>
               {draft.avatar && <button onClick={() => setDraft(d => { const { avatar, ...rest } = d; return rest; })} className="flex items-center gap-1.5 text-xs font-bold text-red-500"><Trash2 size={13} /> ลบรูปโปรไฟล์</button>}
               {([['nickname', 'ชื่อเล่น', 'เช่น เบส', 30], ['phone', 'เบอร์โทร', '08x-xxx-xxxx', 30], ['lineId', 'LINE ID', 'เช่น bass_badminton', 40]] as const).map(([k, label, ph, max]) => (
                 <label key={k} className="block space-y-1">

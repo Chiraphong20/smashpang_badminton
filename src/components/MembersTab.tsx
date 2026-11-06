@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { UserPlus, Trash2, ChevronRight, FileText, X, Search, UserRound, LayoutGrid, List } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { UserPlus, Trash2, ChevronRight, FileText, X, Search, UserRound, LayoutGrid, List, Camera, ChevronLeft, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { RankPickerModal } from './RankPickerModal';
@@ -7,6 +7,7 @@ import { Member, Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS, GameRecord, Sessio
 import { PlayerProfileModal } from './PlayerProfileModal';
 import { PlayerBadge } from './Avatar';
 import { SkillBoard } from './SkillBoard';
+import { BulkAvatarModal } from './BulkAvatarModal';
 
 interface Props {
   members: Member[];
@@ -49,12 +50,30 @@ export function MembersTab({
   const [view, setView] = useState<'list' | 'board'>('list');
   const [showBulkRank, setShowBulkRank] = useState(false);
   const [rankPickId, setRankPickId] = useState<string | null>(null);
+  const [showBulkAvatar, setShowBulkAvatar] = useState(false);
+  const [pageSize, setPageSize] = useState<number>(() => { try { const v = Number(localStorage.getItem('sp_members_pagesize')); return [12, 24, 48].includes(v) ? v : 12; } catch { return 12; } });
+  const [page, setPage] = useState(1);
 
   const filtered = members.filter(m => {
     const matchSearch = m.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchFilter = filter === 'all' || m.status === filter;
     return matchSearch && matchFilter;
   }).sort((a, b) => a.checkInTime - b.checkInTime);
+
+  // แบ่งหน้า: กลับไปหน้า 1 เมื่อเปลี่ยนตัวกรอง/คำค้น และไม่ให้เกินจำนวนหน้าที่มี (เช่น หลังลบคน)
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const curPage = Math.min(page, pageCount);
+  const paged = filtered.slice((curPage - 1) * pageSize, curPage * pageSize);
+  useEffect(() => { setPage(1); }, [filter, searchQuery, pageSize]);
+  const changePageSize = (n: number) => { setPageSize(n); try { localStorage.setItem('sp_members_pagesize', String(n)); } catch { /* storage blocked */ } };
+  const pageNums = (() => {
+    const out: (number | '…')[] = [];
+    for (let i = 1; i <= pageCount; i++) {
+      if (i === 1 || i === pageCount || Math.abs(i - curPage) <= 1) out.push(i);
+      else if (out[out.length - 1] !== '…') out.push('…');
+    }
+    return out;
+  })();
 
   const filters: { id: Filter; label: string }[] = [
     { id: 'all', label: `ทั้งหมด (${members.length})` },
@@ -85,6 +104,12 @@ export function MembersTab({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {onSaveProfile && (
+            <button onClick={() => setShowBulkAvatar(true)}
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-tertiary/10 text-tertiary px-5 py-3 rounded-2xl font-bold text-sm hover:bg-tertiary/20 transition-all">
+              <Camera size={16} /> รูปหลายคน
+            </button>
+          )}
           <button onClick={onImportLine}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-secondary/10 text-secondary px-5 py-3 rounded-2xl font-bold text-sm hover:bg-secondary/20 transition-all">
             <FileText size={16} /> นำเข้าไลน์
@@ -123,10 +148,10 @@ export function MembersTab({
         {filtered.length > 0 && (
           <div className="col-span-full flex items-center gap-4 px-2">
              <button
-               onClick={() => setSelectedIds(prev => prev.length === filtered.length ? [] : filtered.map(m => m.id))}
+               onClick={() => setSelectedIds(prev => paged.every(m => prev.includes(m.id)) ? prev.filter(id => !paged.some(m => m.id === id)) : [...new Set([...prev, ...paged.map(m => m.id)])])}
                className="text-xs font-bold text-primary hover:underline"
              >
-               {selectedIds.length === filtered.length ? 'ยกเลิกการเลือกทั้งหมด' : 'เลือกทั้งหมดในหน้านี้'}
+               {paged.every(m => selectedIds.includes(m.id)) ? 'ยกเลิกการเลือกในหน้านี้' : 'เลือกทั้งหมดในหน้านี้'}
              </button>
              {selectedIds.length > 0 && (
                <span className="text-xs font-semibold text-on-surface/50">เลือกอยู่ {selectedIds.length} คน</span>
@@ -135,7 +160,7 @@ export function MembersTab({
         )}
 
         <AnimatePresence mode="popLayout">
-          {filtered.map(member => {
+          {paged.map(member => {
             const isSelected = selectedIds.includes(member.id);
             return (
               <motion.div key={member.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
@@ -229,6 +254,33 @@ export function MembersTab({
       </AnimatePresence>
     </div>
 
+      {/* แบ่งหน้า */}
+      {filtered.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
+          <p className="text-xs font-bold text-on-surface/50">
+            แสดง {(curPage - 1) * pageSize + 1}–{Math.min(curPage * pageSize, filtered.length)} จาก {filtered.length} คน
+          </p>
+          {pageCount > 1 && (
+            <nav className="flex items-center gap-1" aria-label="เลือกหน้า">
+              <button onClick={() => setPage(1)} disabled={curPage === 1} aria-label="หน้าแรก" className="w-9 h-9 rounded-xl bg-white border border-on-surface/10 flex items-center justify-center disabled:opacity-30"><ChevronsLeft size={16} /></button>
+              <button onClick={() => setPage(curPage - 1)} disabled={curPage === 1} aria-label="หน้าก่อน" className="w-9 h-9 rounded-xl bg-white border border-on-surface/10 flex items-center justify-center disabled:opacity-30"><ChevronLeft size={16} /></button>
+              {pageNums.map((n, i) => n === '…'
+                ? <span key={'e' + i} className="w-6 text-center text-on-surface/30 font-black">…</span>
+                : <button key={n} onClick={() => setPage(n)} aria-current={n === curPage ? 'page' : undefined}
+                    className={cn('min-w-9 h-9 px-2 rounded-xl font-black text-sm border', n === curPage ? 'bg-primary text-white border-primary shadow' : 'bg-white border-on-surface/10 text-on-surface/70 hover:border-primary/40')}>{n}</button>)}
+              <button onClick={() => setPage(curPage + 1)} disabled={curPage === pageCount} aria-label="หน้าถัดไป" className="w-9 h-9 rounded-xl bg-white border border-on-surface/10 flex items-center justify-center disabled:opacity-30"><ChevronRight size={16} /></button>
+              <button onClick={() => setPage(pageCount)} disabled={curPage === pageCount} aria-label="หน้าสุดท้าย" className="w-9 h-9 rounded-xl bg-white border border-on-surface/10 flex items-center justify-center disabled:opacity-30"><ChevronsRight size={16} /></button>
+            </nav>
+          )}
+          <label className="flex items-center gap-2 text-xs font-bold text-on-surface/50">
+            ต่อหน้า
+            <select value={pageSize} onChange={e => changePageSize(Number(e.target.value))} className="px-2 py-1.5 rounded-lg bg-white border border-on-surface/10 font-black text-on-surface">
+              {[12, 24, 48].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
+
       {/* Bulk Action Toolbar */}
       <AnimatePresence>
         {selectedIds.length > 0 && (
@@ -308,6 +360,10 @@ export function MembersTab({
         const m = members.find(x => x.id === rankPickId);
         return m ? <RankPickerModal title={`ระดับมือของ ${m.name}`} current={m.rank} onPick={r => { onUpdateRank(m.id, r); setRankPickId(null); }} onClose={() => setRankPickId(null)} /> : null;
       })()}
+      {showBulkAvatar && onSaveProfile && (
+        <BulkAvatarModal members={members} profiles={profiles} onClose={() => setShowBulkAvatar(false)}
+          onSave={entries => entries.forEach(e => onSaveProfile(e.id, { ...(profiles[e.id] || {}), avatar: e.avatar }))} />
+      )}
       {profileId && (
         <PlayerProfileModal playerId={profileId} members={members} gameHistory={gameHistory} sessionHistory={sessionHistory}
           profile={profiles[profileId]} onSaveProfile={onSaveProfile} onClose={() => setProfileId(null)} />
