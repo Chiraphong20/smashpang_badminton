@@ -1073,9 +1073,9 @@ export function DashboardTab({
                       className="w-5 h-5 rounded border-on-surface/10 text-primary focus:ring-primary/20 shrink-0" />
                   )}
                   <div className="relative shrink-0">
-                    <PlayerBadge rank={m.rank} name={m.name} profile={profiles[m.id]} className="w-11 h-11 rounded-xl text-sm shadow-sm" />
+                    <PlayerBadge zoom rank={m.rank} name={m.name} profile={profiles[m.id]} className="w-11 h-11 rounded-xl text-sm shadow-sm" />
                     {!isReadOnly && (
-                      <button type="button" onClick={e => { e.stopPropagation(); setRankPickId(m.id); }} aria-label="เปลี่ยนระดับมือ" className="absolute inset-0 rounded-xl">
+                      <button type="button" onClick={e => { e.stopPropagation(); setRankPickId(m.id); }} aria-label="เปลี่ยนระดับมือ" className={cn('absolute rounded-xl', profiles[m.id]?.avatar ? '-top-2 -left-2 w-7 h-7 rounded-full' : 'inset-0')}>
                         <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-white shadow ring-1 ring-on-surface/10 flex items-center justify-center text-[10px]">✎</span>
                       </button>
                     )}
@@ -1249,9 +1249,9 @@ export function DashboardTab({
                     />
                   )}
                   <div className="relative group/rank shrink-0">
-                    <PlayerBadge rank={m.rank} name={m.name} profile={profiles[m.id]} className={cn('w-10 h-10 rounded-xl text-sm shadow-sm transition-transform group-hover:scale-105', isHighlighted && 'scale-105')} />
+                    <PlayerBadge zoom rank={m.rank} name={m.name} profile={profiles[m.id]} className={cn('w-10 h-10 rounded-xl text-sm shadow-sm transition-transform group-hover:scale-105', isHighlighted && 'scale-105')} />
                     {!isReadOnly && (
-                      <button type="button" onClick={e => { e.stopPropagation(); setRankPickId(m.id); }} aria-label="เปลี่ยนระดับมือ" title="เปลี่ยนระดับมือ" className="absolute inset-0 rounded-xl">
+                      <button type="button" onClick={e => { e.stopPropagation(); setRankPickId(m.id); }} aria-label="เปลี่ยนระดับมือ" title="เปลี่ยนระดับมือ" className={cn('absolute rounded-xl', profiles[m.id]?.avatar ? '-top-2 -left-2 w-7 h-7 rounded-full' : 'inset-0')}>
                         <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-white shadow ring-1 ring-on-surface/10 flex items-center justify-center text-[10px]">✎</span>
                       </button>
                     )}

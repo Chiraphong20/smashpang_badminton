@@ -137,7 +137,7 @@ export function PlayerProfileModal({ playerId, members, gameHistory, sessionHist
           <button onClick={onClose} className="absolute right-4 top-4 w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center" aria-label="ปิด"><X size={18} /></button>
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
-              <Avatar name={p.name || '?'} profile={editing ? draft : profile} className="w-20 h-20 ring-4 ring-white/30" textClass="text-3xl !bg-white/20 !text-white" />
+              <Avatar zoom={!editing} name={p.name || '?'} profile={editing ? draft : profile} className="w-20 h-20 ring-4 ring-white/30" textClass="text-3xl !bg-white/20 !text-white" />
               {editing && (
                 <button onClick={() => fileRef.current?.click()} className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white text-primary shadow flex items-center justify-center" aria-label="เปลี่ยนรูป"><Camera size={16} /></button>
               )}

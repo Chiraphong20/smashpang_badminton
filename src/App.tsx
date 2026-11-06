@@ -23,6 +23,7 @@ import { AddCourtModal } from './components/AddCourtModal';
 import { ManageProductsModal } from './components/ManageProductsModal';
 import { ImportMembersModal } from './components/ImportMembersModal';
 import { LogsTab } from './components/LogsTab';
+import { PhotoViewer } from './components/Avatar';
 import { QueueView } from './components/QueueView';
 import { SignupPage } from './components/SignupPage';
 import { RANK_WEIGHTS, MODE_THEME, MODE_LABELS } from './types';
@@ -1525,6 +1526,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
 
   return (
     <>
+      <PhotoViewer />
       {staleVersion !== null && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[600] w-[min(92vw,34rem)] bg-amber-50 border-2 border-amber-300 rounded-2xl shadow-2xl p-4 space-y-2">
           <p className="font-black text-amber-800 text-sm">⚠️ มีการแก้ข้อมูลจากอีกเครื่อง/แท็บ</p>

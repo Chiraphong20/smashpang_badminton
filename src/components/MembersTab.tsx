@@ -181,7 +181,7 @@ export function MembersTab({
                 <div className="flex items-start gap-4">
                 <button type="button" onClick={(e) => { e.stopPropagation(); setRankPickId(member.id); }} aria-label={`เปลี่ยนระดับมือของ ${member.name}`}
                   className="relative group/rank shrink-0 active:scale-95 transition-transform">
-                  <PlayerBadge rank={member.rank} name={member.name} profile={profiles[member.id]} className="w-14 h-14 rounded-2xl text-base transition-transform group-hover/rank:scale-105" />
+                  <PlayerBadge zoom rank={member.rank} name={member.name} profile={profiles[member.id]} className="w-14 h-14 rounded-2xl text-base transition-transform group-hover/rank:scale-105" />
                   <span className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-white shadow ring-1 ring-on-surface/10 flex items-center justify-center text-[10px]">✎</span>
                 </button>
                 <div className="flex-1 min-w-0">
