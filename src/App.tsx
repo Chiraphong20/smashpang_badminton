@@ -776,16 +776,11 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     return members
       .filter(m => m.status === 'waiting')
       .filter(m => {
-        const query = searchQuery.toLowerCase().trim();
-        if (!query) return true;
-        return m.name.toLowerCase().includes(query);
-      })
-      .filter(m => {
         const w = RANK_WEIGHTS[m.rank] || 0;
         return w >= lower && w <= upper;
       })
       .sort((a, b) => a.gamesPlayed !== b.gamesPlayed ? a.gamesPlayed - b.gamesPlayed : a.checkInTime - b.checkInTime);
-  }, [members, searchQuery, minRankFilter, maxRankFilter]);
+  }, [members, minRankFilter, maxRankFilter]);
   // ── AUTO MATCH ──────────────────────────────────────────────────────────────
   // กฎ: คนเล่นน้อยลงก่อน | มือเดียวกันได้ ต่างกันได้ไม่เกิน 2 ระดับ | จัดทีมสมดุล
   const autoMatch = (courtId: string) => {

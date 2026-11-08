@@ -1344,7 +1344,7 @@ export function DashboardTab({
                       {!isReadOnly && (
                         <button
                           onClick={(e) => { e.stopPropagation(); onRemove(m.id); }}
-                          className={cn("p-1.5 text-on-surface/20 hover:text-error hover:bg-error/10 rounded-lg transition-all opacity-0 group-hover:opacity-100", isHighlighted && "opacity-100")}
+                          className={cn("p-1.5 text-on-surface/20 hover:text-error hover:bg-error/10 rounded-lg transition-all opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100", isHighlighted && "opacity-100")}
                           title="ลบออกจากเซสชัน"
                         >
                           <Trash2 size={16} />

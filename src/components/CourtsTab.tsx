@@ -194,7 +194,9 @@ const RANK_GROUPS: { id: string; label: string; ranks: Rank[] }[] = [
   { id: 'VIP', label: 'VIP', ranks: RANKS.slice(13) },
 ];
 
-export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = null, max, slots, onConfirm, onRemove, onClose }: {
+export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = null, max, slots, pickAll = false, onConfirm, onRemove, onClose }: {
+  /** แสดงทุกคนไม่ว่าสถานะ (ใช้ตอนจัดคิว: คนที่กำลังเล่นอยู่ก็ใส่คิวได้) */
+  pickAll?: boolean;
   members: Member[];
   /** ผู้เล่นปัจจุบันในช่อง 1-4 ของคอร์ด (ช่อง 1-2 = ทีม A, 3-4 = ทีม B) ใช้โชว์ว่าคนที่ติ๊กจะอยู่ทีมไหนกับใคร */
   slots?: (string | null)[];
@@ -219,7 +221,7 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
 
   // ตัวกรองระดับมือ (เลือกได้หลายกลุ่ม · ไม่เลือก = ทั้งหมด)
   const [rankGroups, setRankGroups] = useState<string[]>([]);
-  const pool = members.filter(m => m.status === 'waiting' || m.id === currentPlayerId);
+  const pool = members.filter(m => pickAll || m.status === 'waiting' || m.id === currentPlayerId);
   const groupOf = (r: Rank) => RANK_GROUPS.find(g => g.ranks.includes(r))?.id ?? 'P';
   const list = pool
     .filter(m => m.name.toLowerCase().includes(q.trim().toLowerCase()) && (rankGroups.length === 0 || rankGroups.includes(groupOf(m.rank))))
@@ -470,6 +472,7 @@ export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect
             members={members}
             profiles={profiles}
             currentPlayerId={playerId}
+            pickAll={pickAll}
             max={player ? 1 : Math.max(1, multi.emptySlots)}
             slots={multi.slots}
             onConfirm={ids => { if (player) onSelect(ids[0]); else multi.onPickMany(ids); setOpen(false); }}
@@ -495,8 +498,10 @@ export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect
 }
 
 // ── Queue Slot Editor Modal ───────────────────────────────────────────────────
-function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {} }: {
+function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {}, queuedElsewhere }: {
   profiles?: Record<string, PlayerProfile>;
+  /** คนที่อยู่ในคิวอื่นอยู่แล้ว — จัดอัตโนมัติจะเลี่ยง */
+  queuedElsewhere?: Set<string>;
   members: Member[];
   slot?: Partial<CourtQueueSlot>;
   onSave: (slot: CourtQueueSlot) => void;
@@ -517,6 +522,35 @@ function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {} }: {
     next[idx] = id;
     return next;
   });
+  // เลือกหลายคนทีเดียว: ใส่ลงช่องว่างตามลำดับ (เหมือนหน้าจัดคอร์ด)
+  const pickMany = (ids: string[]) => setSlots(prev => {
+    const next = [...prev];
+    const empties = next.map((p, i) => (p === null ? i : -1)).filter(i => i >= 0);
+    ids.slice(0, empties.length).forEach((id, k) => { next[empties[k]] = id; });
+    return next;
+  });
+  // จัดอัตโนมัติ: เอาคนที่เล่นน้อยสุดก่อน (เท่ากัน = มารอนานกว่า) ที่ยังไม่อยู่ในคิวนี้/คิวอื่น · ถ้าว่างครบ 4 ช่อง จัดทีมให้สมดุลตามระดับมือ
+  const autoFill = () => {
+    const used = new Set(slots.filter(Boolean) as string[]);
+    const cand = members
+      .filter(m => m.status === 'waiting' && !used.has(m.id) && !queuedElsewhere?.has(m.id))
+      .sort((a, b) => (a.gamesPlayed !== b.gamesPlayed ? a.gamesPlayed - b.gamesPlayed : a.checkInTime - b.checkInTime));
+    const empties = slots.map((p, i) => (p === null ? i : -1)).filter(i => i >= 0);
+    if (empties.length === 0) return;
+    if (cand.length < empties.length) alert(`มีคนรอที่ยังไม่อยู่ในคิวเหลือแค่ ${cand.length} คน`);
+    const take = cand.slice(0, empties.length);
+    if (take.length === 0) return;
+    if (empties.length === 4 && take.length === 4) {
+      // แข็ง+อ่อน คู่กับ กลาง+กลาง เพื่อให้สองทีมสมดุล
+      const byRank = [...take].sort((a, b) => (RANK_WEIGHTS[b.rank] || 0) - (RANK_WEIGHTS[a.rank] || 0));
+      setSlots([byRank[0].id, byRank[3].id, byRank[1].id, byRank[2].id]);
+      return;
+    }
+    setSlots(prev => { const next = [...prev]; take.forEach((m, k) => { next[empties[k]] = m.id; }); return next; });
+  };
+  const emptyCount = slots.filter(p => p === null).length;
+  const multiPick = { emptySlots: emptyCount, slots, onPickMany: pickMany };
+
   const toPlayer = (id: string | null): QueuePlayer | null => {
     const m = id ? members.find(x => x.id === id) : null;
     return m ? { memberId: m.id, name: m.name, rank: m.rank } : null;
@@ -539,13 +573,19 @@ function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {} }: {
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-on-surface/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-[2rem] p-5 sm:p-6 w-full max-w-md shadow-2xl z-10">
-        <div className="flex items-center justify-between mb-5">
+      <div className="relative bg-white rounded-[2rem] p-5 sm:p-6 w-full max-w-xl shadow-2xl z-10">
+        <div className="flex items-center justify-between gap-3 mb-4">
           <h3 className="font-headline font-black text-xl">{slot?.id ? 'แก้ไขคิว' : 'เพิ่มคิวใหม่'}</h3>
+          <button onClick={autoFill} disabled={emptyCount === 0} title="เติมช่องว่างด้วยคนที่รอนาน/เล่นน้อยสุด"
+            className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl border-2 border-blue-400 text-blue-700 bg-white hover:bg-blue-50 font-black text-sm disabled:opacity-35 whitespace-nowrap">
+            <Wand2 size={15} /> จัดอัตโนมัติ
+          </button>
           <button onClick={onClose} className="p-2 hover:bg-background rounded-full transition-colors">
             <X size={20} />
           </button>
         </div>
+
+        <p className="text-xs font-bold text-on-surface/45 mb-3">แตะช่อง <span className="text-primary">เลือกผู้เล่น</span> เพื่อเลือกหลายคนทีเดียว (เรียงเกมน้อย → มาก) หรือกด <span className="text-blue-700">จัดอัตโนมัติ</span> ให้ระบบเลือกคนรอนาน/เล่นน้อยสุดให้</p>
 
         <div className="space-y-3 mb-5 max-h-[60vh] overflow-y-auto pr-1 pt-2">
           {(['A', 'B'] as const).map(t => {
@@ -563,7 +603,7 @@ function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {} }: {
                   </div>
                   {idxs.map(i => (
                     <SlotCard key={i} slotIndex={i} courtId="queue" playerId={slots[i]} team={t} members={members} profiles={profiles}
-                      onSelect={id => setSlotAt(i, id)} locked={false} pickAll sheet />
+                      onSelect={id => setSlotAt(i, id)} locked={false} pickAll multi={multiPick} />
                   ))}
                 </div>
               </React.Fragment>
@@ -732,7 +772,7 @@ export function CourtsTab({
   const waiting = members
     .filter(m => m.status === 'waiting')
     .filter(m => {
-      const query = (searchQuery + ' ' + localSearch).toLowerCase().trim();
+      const query = localSearch.toLowerCase().trim();
       if (!query) return true;
       return m.name.toLowerCase().includes(query);
     })
@@ -1050,6 +1090,7 @@ export function CourtsTab({
         <QueueSlotEditor
           members={members}
           profiles={profiles}
+          queuedElsewhere={new Set(Object.values(courtQueues).flat().filter((q): q is CourtQueueSlot => !!q && q.id !== editingSlot.slot?.id).flatMap(q => [...q.teamA, ...q.teamB].map(p => p.memberId)))}
           slot={editingSlot.slot}
           onClose={() => setEditingSlot(null)}
           onSave={slot => {

@@ -242,7 +242,7 @@ export function MembersTab({
                     </div>
                   ) : (
                     <button onClick={() => setConfirmDelete(member.id)}
-                      className="opacity-0 group-hover:opacity-100 text-on-surface/20 hover:text-error transition-all">
+                      className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 text-on-surface/30 hover:text-error transition-all">
                       <Trash2 size={16} />
                     </button>
                   )}
