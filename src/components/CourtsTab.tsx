@@ -446,7 +446,10 @@ export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect
                 <p className="font-headline font-black text-sm sm:text-base truncate max-w-full">{player.name}</p>
                 <span className={cn('px-2.5 py-0.5 rounded-full text-xs font-black border', rankPill(player.rank))}>{player.rank}</span>
               </div>
-              <span className={cn('inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-black', isA ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-600')}>ทีม {team}</span>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className={cn('inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black', isA ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-600')}>ทีม {team}</span>
+                <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-600" title="จำนวนเกมที่ตีวันนี้">🏸 {player.gamesPlayed} เกม</span>
+              </div>
             </div>
             {!locked && (
               <span className={cn('hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-black shrink-0 bg-white', isA ? 'border-blue-300 text-blue-700' : 'border-blue-300 text-blue-700')}>
