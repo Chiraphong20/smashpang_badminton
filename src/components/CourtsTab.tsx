@@ -7,6 +7,7 @@ import { Member, Court, Snack, GameRecord, Rank, RANKS, AutoMatchOpts, DEFAULT_A
 import { format } from 'date-fns';
 import { POSModal } from './POSModal';
 import { PlayerBadge } from './Avatar';
+import { chooseAutoPlayers } from '../lib/autoMatch';
 import { ShuttleIcon } from './ShuttleIcon';
 import { useModalHotkeys } from '../hooks/useModalHotkeys';
 
@@ -634,7 +635,9 @@ export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect
 }
 
 // ── Queue Slot Editor Modal ───────────────────────────────────────────────────
-function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {}, queuedElsewhere }: {
+function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {}, queuedElsewhere, autoOpts, onAutoOpts }: {
+  autoOpts: AutoMatchOpts;
+  onAutoOpts: (o: AutoMatchOpts) => void;
   profiles?: Record<string, PlayerProfile>;
   /** คนที่อยู่ในคิวอื่นอยู่แล้ว — จัดอัตโนมัติจะเลี่ยง */
   queuedElsewhere?: Set<string>;
@@ -665,24 +668,27 @@ function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {}, queued
     ids.slice(0, empties.length).forEach((id, k) => { next[empties[k]] = id; });
     return next;
   });
-  // จัดอัตโนมัติ: เอาคนที่เล่นน้อยสุดก่อน (เท่ากัน = มารอนานกว่า) ที่ยังไม่อยู่ในคิวนี้/คิวอื่น · ถ้าว่างครบ 4 ช่อง จัดทีมให้สมดุลตามระดับมือ
-  const autoFill = () => {
+  // จัดอัตโนมัติ: ใช้ตัวเลือกเดียวกับหน้าจัดคอร์ท (ผสม/เกมน้อย/ระดับมือ + จำกัดระดับ) · เลี่ยงคนที่อยู่ในคิวนี้/คิวอื่นแล้ว
+  const [showAuto, setShowAuto] = useState(false);
+  const autoPool = () => {
     const used = new Set(slots.filter(Boolean) as string[]);
-    const cand = members
+    return members
       .filter(m => m.status === 'waiting' && !used.has(m.id) && !queuedElsewhere?.has(m.id))
       .sort((a, b) => (a.gamesPlayed !== b.gamesPlayed ? a.gamesPlayed - b.gamesPlayed : a.checkInTime - b.checkInTime));
+  };
+  const autoFill = () => {
     const empties = slots.map((p, i) => (p === null ? i : -1)).filter(i => i >= 0);
     if (empties.length === 0) return;
-    if (cand.length < empties.length) alert(`มีคนรอที่ยังไม่อยู่ในคิวเหลือแค่ ${cand.length} คน`);
-    const take = cand.slice(0, empties.length);
-    if (take.length === 0) return;
-    if (empties.length === 4 && take.length === 4) {
-      // แข็ง+อ่อน คู่กับ กลาง+กลาง เพื่อให้สองทีมสมดุล
-      const byRank = [...take].sort((a, b) => (RANK_WEIGHTS[b.rank] || 0) - (RANK_WEIGHTS[a.rank] || 0));
-      setSlots([byRank[0].id, byRank[3].id, byRank[1].id, byRank[2].id]);
-      return;
+    const cand = autoPool().filter(m => autoOpts.ranks.length === 0 || autoOpts.ranks.includes(m.rank));
+    if (cand.length < empties.length) {
+      alert(`มีคนรอที่ยังไม่อยู่ในคิว${autoOpts.ranks.length ? 'และอยู่ในระดับมือที่เลือก' : ''}เหลือแค่ ${cand.length} คน`);
+      if (cand.length === 0) return;
     }
-    setSlots(prev => { const next = [...prev]; take.forEach((m, k) => { next[empties[k]] = m.id; }); return next; });
+    const existing = slots.map(id => members.find(x => x.id === id)).filter((m): m is Member => !!m);
+    const take = cand.length >= empties.length
+      ? chooseAutoPlayers(cand, existing, empties.length, autoOpts)
+      : cand.map(m => m.id);
+    setSlots(prev => { const next = [...prev]; take.forEach((id, k) => { next[empties[k]] = id; }); return next; });
   };
   const emptyCount = slots.filter(p => p === null).length;
   const multiPick = { emptySlots: emptyCount, slots, onPickMany: pickMany };
@@ -712,10 +718,18 @@ function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {}, queued
       <div className="relative bg-white rounded-[2rem] p-5 sm:p-6 w-full max-w-xl shadow-2xl z-10">
         <div className="flex items-center justify-between gap-3 mb-4">
           <h3 className="font-headline font-black text-xl">{slot?.id ? 'แก้ไขคิว' : 'เพิ่มคิวใหม่'}</h3>
-          <button onClick={autoFill} disabled={emptyCount === 0} title="เติมช่องว่างด้วยคนที่รอนาน/เล่นน้อยสุด"
-            className="ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl border-2 border-blue-400 text-blue-700 bg-white hover:bg-blue-50 font-black text-sm disabled:opacity-35 whitespace-nowrap">
-            <Wand2 size={15} /> จัดอัตโนมัติ
-          </button>
+          <div className="ml-auto flex items-center gap-1.5">
+            <button onClick={autoFill} disabled={emptyCount === 0} title="เติมช่องว่างตามตัวเลือกจัดอัตโนมัติ"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border-2 border-blue-400 text-blue-700 bg-white hover:bg-blue-50 font-black text-sm disabled:opacity-35 whitespace-nowrap">
+              <Wand2 size={15} /> จัดอัตโนมัติ
+              {autoOpts.mode !== 'both' || autoOpts.ranks.length > 0 || autoOpts.rankMode !== 'near'
+                ? <span className="text-[10px] font-black bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">ปรับแล้ว</span> : null}
+            </button>
+            <button onClick={() => setShowAuto(true)} aria-label="ตัวเลือกจัดอัตโนมัติ" title="ตัวเลือกจัดอัตโนมัติ: เกมน้อย / ระดับมือ"
+              className="border-2 border-blue-400 text-blue-700 bg-white w-10 py-2 rounded-xl hover:bg-blue-50 transition flex items-center justify-center shrink-0">
+              <SlidersHorizontal size={15} />
+            </button>
+          </div>
           <button onClick={onClose} className="p-2 hover:bg-background rounded-full transition-colors">
             <X size={20} />
           </button>
@@ -763,9 +777,14 @@ function QueueSlotEditor({ members, slot, onSave, onClose, profiles = {}, queued
           </button>
         </div>
       </div>
+      {showAuto && (
+        <AutoMatchModal members={autoPool()} profiles={profiles} opts={autoOpts} onChange={onAutoOpts}
+          onClose={() => setShowAuto(false)} onRun={() => { setShowAuto(false); autoFill(); }} />
+      )}
     </div>
   );
 }
+
 
 // ── Game History Row (editable) ──────────────────────────────────────────────
 function GameRow({ game, onEditGame, onUndoGame, shuttlePrice }: {
@@ -1253,6 +1272,8 @@ export function CourtsTab({
         <QueueSlotEditor
           members={members}
           profiles={profiles}
+          autoOpts={autoOpts}
+          onAutoOpts={setAutoOpts}
           queuedElsewhere={new Set(Object.values(courtQueues).flat().filter((q): q is CourtQueueSlot => !!q && q.id !== editingSlot.slot?.id).flatMap(q => [...q.teamA, ...q.teamB].map(p => p.memberId)))}
           slot={editingSlot.slot}
           onClose={() => setEditingSlot(null)}

@@ -27,6 +27,7 @@ import { PhotoViewer } from './components/Avatar';
 import { QueueView } from './components/QueueView';
 import { SignupPage } from './components/SignupPage';
 import { RANK_WEIGHTS, MODE_THEME, MODE_LABELS, AutoMatchOpts, DEFAULT_AUTO_OPTS } from './types';
+import { chooseAutoPlayers } from './lib/autoMatch';
 import { useModalHotkeys } from './hooks/useModalHotkeys';
 
 type Tab = 'dashboard' | 'members' | 'courts' | 'settings' | 'logs' | 'stats';
@@ -802,11 +803,6 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
       return;
     }
 
-    const getW = (pid: string | null) => {
-      if (!pid) return 0;
-      const m = members.find(x => x.id === pid);
-      return m ? (RANK_WEIGHTS[m.rank] || 0) : 0;
-    };
     const place = (ids: string[]) => {
       const newPlayers = [...court.players];
       emptySlotIndices.forEach((idx, i) => { newPlayers[idx] = ids[i]; });
@@ -814,80 +810,9 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
       setMembers(prev => prev.map(m => ids.includes(m.id) ? { ...m, status: 'playing' } : m));
     };
 
-    // ── ถ้าเติมแค่ 1-3 คน: ดูคนที่อยู่ในคอร์ทแล้วเป็นหลัก ──────────────────
-    if (needed < 4) {
-      const existing = court.players.filter((p): p is string => !!p);
-      const avgW = existing.reduce((a, id) => a + getW(id), 0) / Math.max(1, existing.length);
-      const cost = (m: typeof waiting[number]) => {
-        const rd = Math.abs((RANK_WEIGHTS[m.rank] || 0) - avgW);
-        if (opts.mode === 'games') return m.gamesPlayed * 100 + m.checkInTime / 1e13;
-        if (opts.mode === 'rank') return rd * (opts.rankMode === 'same' ? 100 : 10) + m.gamesPlayed * 0.5;
-        return m.gamesPlayed * 1.5 + rd * (opts.rankMode === 'same' ? 6 : 3);
-      };
-      place([...waiting].sort((a, b) => cost(a) - cost(b)).slice(0, needed).map(m => m.id));
-      return;
-    }
-
-    // ── ต้องการ 4 คน: หาชุดที่ดีที่สุด ───────────────────────────────────────
-    // games: 4 คนเล่นน้อยสุด · rank: ค้นหาจากคนรอทั้งหมด (สูงสุด 20 คนต้นคิว) · both: pool 8 คนต้นคิว
-    const POOL_SIZE = Math.min(opts.mode === 'games' ? 4 : opts.mode === 'rank' ? 20 : 8, waiting.length);
-    const pool = waiting.slice(0, POOL_SIZE);
-
-    const getCombinations = (arr: typeof pool, k: number): (typeof pool)[] => {
-      if (k === 0) return [[]];
-      if (arr.length < k) return [];
-      const [first, ...rest] = arr;
-      return [
-        ...getCombinations(rest, k - 1).map(c => [first, ...c]),
-        ...getCombinations(rest, k),
-      ];
-    };
-    const combos = getCombinations(pool, 4);
-    const teamDiffOf = (w: number[]) => Math.min(
-      Math.abs(w[0] + w[1] - w[2] - w[3]),
-      Math.abs(w[0] + w[2] - w[1] - w[3]),
-      Math.abs(w[0] + w[3] - w[1] - w[2]),
-    );
-
-    // ── Scoring (ต่ำ = ดี) ────────────────────────────────────────────────────
-    const scoreCombination = (group: typeof pool): number => {
-      const weights = group.map(m => getW(m.id));
-      const teamDiff = teamDiffOf(weights);                       // ผลต่างทีม (0=ดี)
-      const rankRange = Math.max(...weights) - Math.min(...weights);
-      const gamesSum = group.reduce((a, m) => a + m.gamesPlayed, 0);
-
-      if (opts.mode === 'games') return teamDiff;                  // 4 คนเล่นน้อยสุดตายตัว แค่จัดทีมให้สมดุล
-      if (opts.mode === 'rank') {
-        // ระดับมือใกล้กันเป็นหลัก (same = เข้มกว่า) · เท่ากันเลือกชุดที่เล่นน้อยกว่า
-        const rangeCost = opts.rankMode === 'same' ? rankRange * 100 : Math.max(0, rankRange - 2) * 40 + rankRange * 4;
-        return rangeCost + teamDiff + gamesSum * 0.8;
-      }
-      // both: ผสมเกมน้อย + ระดับมือใกล้กัน
-      const rangePenalty = opts.rankMode === 'same' ? rankRange * 12 : Math.max(0, rankRange - 2) * 6;
-      // โบนัสถ้าใช้ 2 คนต้นคิวจริงๆ (ประกันว่าคนรอนานได้ลง)
-      const hasTop2 = group.some(m => m.id === pool[0].id) && group.some(m => m.id === pool[1].id);
-      const top2Bonus = hasTop2 ? 0 : 4;
-      // penalize คนที่เล่นเยอะเกินกว่าค่าเฉลี่ยใน pool
-      const avgGames = pool.reduce((a, m) => a + m.gamesPlayed, 0) / pool.length;
-      const gamesPenalty = group.reduce((sum, m) => sum + Math.max(0, m.gamesPlayed - avgGames), 0) * 0.4;
-      return teamDiff + rangePenalty + top2Bonus + gamesPenalty;
-    };
-
-    let bestCombo = combos[0];
-    let bestScore = Infinity;
-    for (const combo of combos) {
-      const score = scoreCombination(combo);
-      if (score < bestScore) { bestScore = score; bestCombo = combo; }
-    }
-
-    // จัด team split ที่สมดุลที่สุดสำหรับ bestCombo
-    const bw = bestCombo.map(m => ({ id: m.id, w: getW(m.id) }));
-    const allSplits = [
-      { order: [bw[0].id, bw[1].id, bw[2].id, bw[3].id], diff: Math.abs(bw[0].w+bw[1].w - bw[2].w-bw[3].w) },
-      { order: [bw[0].id, bw[2].id, bw[1].id, bw[3].id], diff: Math.abs(bw[0].w+bw[2].w - bw[1].w-bw[3].w) },
-      { order: [bw[0].id, bw[3].id, bw[1].id, bw[2].id], diff: Math.abs(bw[0].w+bw[3].w - bw[1].w-bw[2].w) },
-    ];
-    place(allSplits.reduce((best, s) => s.diff < best.diff ? s : best).order);
+    // เลือกคนตามตัวเลือก (ตรรกะกลางอยู่ใน lib/autoMatch.ts ใช้ร่วมกับหน้าต่างเพิ่มคิว)
+    const existing = court.players.map(pid => members.find(x => x.id === pid)).filter((m): m is Member => !!m);
+    place(chooseAutoPlayers(waiting, existing, needed, opts));
   };
 
   // ── START GAME: commit 4 players, auto-count 1 shuttle ────────────────────
