@@ -1795,6 +1795,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     onUseQueueSlot={useQueueSlotOnCourt}
                     onAutoMatch={autoMatch} onStartGame={startGame} onResetCourt={resetCourt}
                     onRemovePlayer={removePlayerFromCourt} onAddPlayer={addPlayerToCourt}
+                    onNewMember={(n, r) => addMember(n, r, true)}
                     onDeleteCourt={deleteCourt} onAddSnack={addSnacksToMember}
                     onEditGame={editGame} onUndoGame={undoGame} onUpdateCourt={setCourts}
                     minRankFilter={minRankFilter} setMinRankFilter={setMinRankFilter}

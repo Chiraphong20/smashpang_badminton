@@ -62,6 +62,8 @@ interface Props {
   shuttleChargePerShuttle: number;
   onRemovePlayer: (courtId: string, slotIndex: number) => void;
   onAddPlayer: (courtId: string, slotIndex: number, playerId: string) => void;
+  /** เพิ่มสมาชิกใหม่ทันทีจากหน้าต่างเลือกผู้เล่น (ค้นหาแล้วไม่เจอ) */
+  onNewMember?: (name: string, rank: Rank) => boolean | void;
   onDeleteCourt: (courtId: string) => void;
   onAddSnack: (memberId: string, snacks: Snack[]) => void;
   /** แพ็กเกจเปิดใช้สินค้าหรือไม่ (ไม่ส่ง = เปิด) */
@@ -195,6 +197,8 @@ const RANK_GROUPS: { id: string; label: string; ranks: Rank[] }[] = [
   { id: 'VIP', label: 'VIP', ranks: RANKS.slice(13) },
 ];
 
+const NewMemberCtx = React.createContext<((name: string, rank: Rank) => boolean | void) | null>(null);
+
 export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = null, max, slots, pickAll = false, onConfirm, onRemove, onClose }: {
   /** แสดงทุกคนไม่ว่าสถานะ (ใช้ตอนจัดคิว: คนที่กำลังเล่นอยู่ก็ใส่คิวได้) */
   pickAll?: boolean;
@@ -213,6 +217,8 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
   const [hi, setHi] = useState(0);
+  const newMember = React.useContext(NewMemberCtx);
+  const [newRank, setNewRank] = useState<Rank>(() => { try { return (localStorage.getItem('sp_new_rank') as Rank) || 'P'; } catch { return 'P'; } });
   const single = max <= 1;
   const searchRef = useRef<HTMLInputElement>(null);
   // เครื่องที่มีเมาส์/คีย์บอร์ดจริง (คอม) โฟกัสช่องค้นหาให้เลย · มือถือไม่โฟกัส เพื่อไม่ให้แป้นพิมพ์เด้งขึ้นมาบังรายชื่อ
@@ -309,6 +315,22 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
             </button>
           )}
           {list.length === 0 && <p className="text-center py-8 text-sm text-on-surface/30 font-bold">{pool.length === 0 ? 'ไม่มีผู้เล่นที่รอลงสนาม' : 'ไม่พบผู้เล่นตามตัวกรอง'}</p>}
+          {newMember && q.trim() && !members.some(m => m.name.trim().toLowerCase() === q.trim().toLowerCase() && pool.includes(m)) && (
+            <div className="mx-4 my-2 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-3 space-y-2">
+              <p className="text-sm font-black">ไม่เจอ “{q.trim()}” ? เพิ่มเป็นผู้เล่นใหม่ได้เลย</p>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-on-surface/50 shrink-0">ระดับมือ</label>
+                <select value={newRank} onChange={e => { const r = e.target.value as Rank; setNewRank(r); try { localStorage.setItem('sp_new_rank', r); } catch { /* ignore */ } }}
+                  aria-label="ระดับมือผู้เล่นใหม่" className="flex-1 min-w-0 bg-white rounded-xl border border-on-surface/10 px-2 py-2 text-sm font-bold">
+                  {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <button type="button" aria-label="เพิ่มผู้เล่นใหม่"
+                  onClick={() => { const ok = newMember(q.trim(), newRank); if (ok !== false) setQ(q.trim()); }}
+                  className="shrink-0 px-4 py-2 rounded-xl bg-primary text-white text-sm font-black flex items-center gap-1.5 active:scale-95"><Plus size={15} /> เพิ่ม</button>
+              </div>
+              <p className="text-[11px] font-semibold text-on-surface/45">เพิ่มแล้วจะเข้าคิวรอ และขึ้นในรายชื่อนี้ให้แตะเลือกได้ทันที</p>
+            </div>
+          )}
           {list.map((m, i) => {
             const idx = picked.indexOf(m.id);
             const on = idx >= 0;
@@ -864,7 +886,7 @@ export function CourtsTab({
   minRankFilter, setMinRankFilter, maxRankFilter, setMaxRankFilter,
   onAddCourt,
   courtQueues, onAddCourtQueue, onRemoveCourtQueue, onUpdateCourtQueue, onMoveCourtQueue, onUseQueueSlot,
-  sessionMode, askScore, shuttleChargePerShuttle, focusCourtId, profiles = {},
+  sessionMode, askScore, shuttleChargePerShuttle, focusCourtId, profiles = {}, onNewMember,
 }: Props) {
   const [scoringCourtId, setScoringCourtId] = useState<string | null>(null);
   const finishCourt = (courtId: string) => {
@@ -1120,6 +1142,7 @@ export function CourtsTab({
   }, [selected, isActive, filledCount, posTarget, editingSlot, scoringCourtId, startPromptId, askScore, onResetCourt, onStartGame, courts]);
 
   return (
+    <NewMemberCtx.Provider value={onNewMember ?? null}>
     <div className="space-y-4 xl:space-y-0 xl:flex xl:flex-col xl:gap-4 xl:h-[calc(100vh-3rem)]">
       {/* ผลการแข่งขัน: ทีมไหนชนะ หรือเสมอ — เก็บเป็น 1-0 / 0-1 / 0-0 (ไม่เก็บคะแนนจริง) */}
       {scoringCourtId && (() => {
@@ -1766,5 +1789,6 @@ export function CourtsTab({
         </div>
       )}
     </div>
+    </NewMemberCtx.Provider>
   );
 }
