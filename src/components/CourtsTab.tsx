@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Bolt, X, Plus, Trash2, ShoppingCart, Search, Check, RotateCcw, Lock, ChevronDown, ChevronRight, RefreshCw, Wand2, ArrowDownWideNarrow, BarChart3 } from 'lucide-react';
+import { Bolt, X, Plus, Trash2, ShoppingCart, Search, Check, RotateCcw, Lock, ChevronDown, ChevronRight, RefreshCw, Wand2, ArrowDownWideNarrow, BarChart3, SlidersHorizontal, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { Member, Court, Snack, GameRecord, Rank, RANKS, RANK_WEIGHTS, RANK_COLORS, RANK_LEVEL_LABELS, CourtQueueSlot, QueuePlayer, SessionMode, PlayerProfile } from '../types';
+import { Member, Court, Snack, GameRecord, Rank, RANKS, AutoMatchOpts, DEFAULT_AUTO_OPTS, RANK_WEIGHTS, RANK_COLORS, RANK_LEVEL_LABELS, CourtQueueSlot, QueuePlayer, SessionMode, PlayerProfile } from '../types';
 import { format } from 'date-fns';
 import { POSModal } from './POSModal';
 import { PlayerBadge } from './Avatar';
@@ -53,7 +53,7 @@ interface Props {
   snacks: Snack[];
   searchQuery: string;
   gameHistory: GameRecord[];
-  onAutoMatch: (courtId: string) => void;
+  onAutoMatch: (courtId: string, opts?: AutoMatchOpts) => void;
   onStartGame: (courtId: string) => void;
   onResetCourt: (courtId: string, score?: { scoreA: number; scoreB: number }) => void;
   sessionMode: SessionMode;
@@ -343,6 +343,139 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
             </button>
           </div>
         )}
+      </motion.div>
+    </div>,
+    document.body
+  );
+}
+
+// ── ตัวเลือกจัดอัตโนมัติ ─────────────────────────────────────────────────────
+// เงื่อนไข: เกมน้อย / ระดับมือใกล้กัน / ผสม (ค่าเริ่มต้น) + เลือกระดับมือที่จะเอามาจัด พร้อมดูรายชื่อของแต่ละระดับ
+const AUTO_MODES: { id: AutoMatchOpts['mode']; title: string; desc: string }[] = [
+  { id: 'both', title: 'ผสม (แนะนำ)', desc: 'เลือกคนเล่นน้อยก่อน และจับคนระดับมือใกล้กันลงด้วยกัน' },
+  { id: 'games', title: 'เกมน้อยก่อน', desc: 'เลือกคนที่ตีน้อยสุด (เท่ากันเอาคนมาก่อน) แล้วจัดทีมให้สมดุล' },
+  { id: 'rank', title: 'ระดับมือใกล้กัน', desc: 'จับคนระดับมือใกล้เคียงกันลงด้วยกัน (เกมน้อยเป็นตัวช่วยตัดสิน)' },
+];
+
+function AutoMatchModal({ members, profiles = {}, opts, onChange, onRun, onClose }: {
+  /** คนที่รอและจัดลงคอร์ทได้ (ผ่านตัวกรองระดับมือด้านซ้ายแล้ว) */
+  members: Member[];
+  profiles?: Record<string, PlayerProfile>;
+  opts: AutoMatchOpts;
+  onChange: (o: AutoMatchOpts) => void;
+  onRun: () => void;
+  onClose: () => void;
+}) {
+  const [peek, setPeek] = useState<Rank | null>(null);
+  const countOf = (r: Rank) => members.filter(m => m.rank === r).length;
+  const toggleRank = (r: Rank) => onChange({ ...opts, ranks: opts.ranks.includes(r) ? opts.ranks.filter(x => x !== r) : [...opts.ranks, r] });
+  const inScope = members.filter(m => opts.ranks.length === 0 || opts.ranks.includes(m.rank)).length;
+  const peeked = peek ? members.filter(m => m.rank === peek).sort((a, b) => a.gamesPlayed - b.gamesPlayed || a.checkInTime - b.checkInTime) : [];
+  const showRankMode = opts.mode !== 'games';
+
+  return createPortal(
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-4" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+      <div className="absolute inset-0 bg-on-surface/55 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.14 }}
+        className="relative z-10 bg-white rounded-[1.75rem] shadow-2xl w-full max-w-2xl flex flex-col max-h-[92vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-on-surface/5 shrink-0">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-headline font-black text-lg leading-tight">ตัวเลือกจัดอัตโนมัติ</h3>
+            <p className="text-xs font-bold text-on-surface/45">ปุ่ม “จัดอัตโนมัติ” จะใช้ตัวเลือกนี้ทุกครั้ง · รอลงคอร์ท {members.length} คน</p>
+          </div>
+          <button onClick={onClose} className="p-2 -mr-2 rounded-full hover:bg-background" aria-label="ปิด"><X size={20} /></button>
+        </div>
+
+        <div className="overflow-y-auto px-5 py-4 space-y-5 min-h-0">
+          <section className="space-y-2">
+            <p className="text-sm font-black">1. เลือกวิธีจัด</p>
+            <div className="grid sm:grid-cols-3 gap-2">
+              {AUTO_MODES.map(m => {
+                const on = opts.mode === m.id;
+                return (
+                  <button key={m.id} onClick={() => onChange({ ...opts, mode: m.id })} aria-pressed={on}
+                    className={cn('text-left rounded-2xl border-2 p-3 transition-colors', on ? 'border-primary bg-primary/5' : 'border-on-surface/10 hover:border-primary/40')}>
+                    <span className="flex items-center gap-2 font-black text-sm">
+                      <span className={cn('w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0', on ? 'border-primary bg-primary' : 'border-on-surface/25')}>{on && <Check size={10} className="text-white" strokeWidth={4} />}</span>
+                      {m.title}
+                    </span>
+                    <span className="block text-[11px] font-semibold text-on-surface/50 mt-1 leading-snug">{m.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {showRankMode && (
+            <section className="space-y-2">
+              <p className="text-sm font-black">2. ระดับมือที่จับคู่กัน</p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {([['near', 'ใกล้เคียงกัน', 'ต่างกันได้ไม่เกิน 2 ระดับ'], ['same', 'ระดับมือเดียวกัน', 'พยายามเอาระดับเดียวกันลงด้วยกัน (ถ้าไม่มีคู่ ใกล้สุดแทน)']] as const).map(([id, t, d]) => {
+                  const on = opts.rankMode === id;
+                  return (
+                    <button key={id} onClick={() => onChange({ ...opts, rankMode: id })} aria-pressed={on}
+                      className={cn('text-left rounded-2xl border-2 p-3 transition-colors', on ? 'border-primary bg-primary/5' : 'border-on-surface/10 hover:border-primary/40')}>
+                      <span className="block font-black text-sm">{t}</span>
+                      <span className="block text-[11px] font-semibold text-on-surface/50 mt-0.5 leading-snug">{d}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          <section className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-black">{showRankMode ? '3' : '2'}. เลือกระดับมือที่จะเอามาจัด <span className="font-bold text-on-surface/40">(ไม่เลือก = ทุกระดับ)</span></p>
+              {opts.ranks.length > 0 && <button onClick={() => onChange({ ...opts, ranks: [] })} className="text-xs font-black text-primary hover:underline shrink-0">ล้าง</button>}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {RANKS.map(r => {
+                const n = countOf(r);
+                const on = opts.ranks.includes(r);
+                const peeking = peek === r;
+                return (
+                  <span key={r} className={cn('inline-flex items-stretch rounded-xl border-2 overflow-hidden', on ? 'border-primary' : 'border-on-surface/10', n === 0 && 'opacity-40')}>
+                    <button onClick={() => toggleRank(r)} disabled={n === 0 && !on} aria-pressed={on}
+                      className={cn('px-2.5 py-1.5 text-xs font-black flex items-center gap-1.5', on ? 'bg-primary text-white' : 'bg-white text-on-surface/70 hover:bg-primary/5')}>
+                      {r} <span className={cn('text-[10px]', on ? 'text-white/80' : 'text-on-surface/40')}>{n}</span>
+                    </button>
+                    <button onClick={() => setPeek(peeking ? null : r)} disabled={n === 0} aria-label={`ดูรายชื่อระดับ ${r}`} title="ดูว่าระดับนี้มีใครบ้าง"
+                      className={cn('px-1.5 border-l-2 flex items-center', on ? 'border-primary' : 'border-on-surface/10', peeking ? 'bg-amber-100 text-amber-700' : 'bg-white text-on-surface/40 hover:text-primary')}>
+                      <Eye size={13} />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+
+            {peek && (
+              <div className="rounded-2xl bg-background p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-black">ระดับ {peek} · {peeked.length} คน (เรียงเกมน้อย → มาก)</p>
+                  <button onClick={() => setPeek(null)} className="text-on-surface/40 hover:text-on-surface" aria-label="ปิดรายชื่อ"><X size={14} /></button>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-1.5">
+                  {peeked.map(m => (
+                    <div key={m.id} className="flex items-center gap-2 bg-white rounded-xl px-2.5 py-1.5">
+                      <PlayerBadge rank={m.rank} name={m.name} profile={profiles[m.id]} className="w-8 h-8 rounded-lg text-[11px]" />
+                      <span className="flex-1 min-w-0 font-bold text-sm truncate">{m.name}</span>
+                      <span className="text-xs font-black text-on-surface/50 shrink-0">🏸 {m.gamesPlayed} เกม</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="px-5 py-3 border-t border-on-surface/5 flex items-center gap-2 shrink-0">
+          <button onClick={() => onChange(DEFAULT_AUTO_OPTS)} className="px-4 py-3 rounded-xl text-sm font-bold text-on-surface/50 hover:bg-background">ค่าเริ่มต้น</button>
+          <button onClick={onRun} disabled={inScope === 0}
+            className="flex-1 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 disabled:opacity-40 active:scale-95 transition-all flex items-center justify-center gap-2">
+            <Wand2 size={16} /> จัดเลย <span className="font-bold opacity-80">· จากคนรอ {inScope} คน</span>
+          </button>
+        </div>
       </motion.div>
     </div>,
     document.body
@@ -747,6 +880,16 @@ export function CourtsTab({
   }, [focusCourtId]);
   const [posTarget, setPosTarget] = useState<Member | null>(null);
   const [localSearch, setLocalSearch] = useState('');
+  // ตัวเลือกจัดอัตโนมัติ (จำไว้ในเครื่องนี้) · ค่าเริ่มต้น = ผสมเกมน้อย + ระดับมือใกล้กัน
+  const [autoOpts, setAutoOptsState] = useState<AutoMatchOpts>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem('sp_auto_opts') || 'null');
+      if (v && ['games', 'rank', 'both'].includes(v.mode)) return { ...DEFAULT_AUTO_OPTS, ...v, ranks: Array.isArray(v.ranks) ? v.ranks.filter((r: string) => (RANKS as string[]).includes(r)) : [] };
+    } catch { /* ใช้ค่าเริ่มต้น */ }
+    return DEFAULT_AUTO_OPTS;
+  });
+  const setAutoOpts = (o: AutoMatchOpts) => { setAutoOptsState(o); try { localStorage.setItem('sp_auto_opts', JSON.stringify(o)); } catch { /* storage blocked */ } };
+  const [showAuto, setShowAuto] = useState(false);
   const [sortBy, setSortBy] = useState<'queue' | 'wait' | 'games'>('queue');
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
@@ -1088,6 +1231,23 @@ export function CourtsTab({
         );
       })()}
 
+      {/* ตัวเลือกจัดอัตโนมัติ */}
+      {showAuto && selected && (
+        <AutoMatchModal
+          members={members.filter(m => {
+            if (m.status !== 'waiting' || selected.players.includes(m.id)) return false;
+            const lo = Math.min(RANK_WEIGHTS[minRankFilter] || 0, RANK_WEIGHTS[maxRankFilter] || 15), hi = Math.max(RANK_WEIGHTS[minRankFilter] || 0, RANK_WEIGHTS[maxRankFilter] || 15);
+            const w = RANK_WEIGHTS[m.rank] || 0;
+            return w >= lo && w <= hi;
+          })}
+          profiles={profiles}
+          opts={autoOpts}
+          onChange={setAutoOpts}
+          onClose={() => setShowAuto(false)}
+          onRun={() => { setShowAuto(false); guardQueue(() => { expectPromptRef.current = true; onAutoMatch(selected.id, autoOpts); }); }}
+        />
+      )}
+
       {/* Queue Slot Editor */}
       {editingSlot && (
         <QueueSlotEditor
@@ -1415,9 +1575,15 @@ export function CourtsTab({
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <RefreshCw size={16} /> สลับทีม
                       </button>
-                      <button onClick={() => guardQueue(() => { expectPromptRef.current = true; onAutoMatch(selected.id); })}
+                      <button onClick={() => guardQueue(() => { expectPromptRef.current = true; onAutoMatch(selected.id, autoOpts); })}
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <Wand2 size={16} /> จัดอัตโนมัติ
+                        {autoOpts.mode !== 'both' || autoOpts.ranks.length > 0 || autoOpts.rankMode !== 'near'
+                          ? <span className="text-[10px] font-black bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">ปรับแล้ว</span> : null}
+                      </button>
+                      <button onClick={() => setShowAuto(true)} aria-label="ตัวเลือกจัดอัตโนมัติ" title="ตัวเลือกจัดอัตโนมัติ: เกมน้อย / ระดับมือ"
+                        className="border-2 border-blue-400 text-blue-700 bg-white w-12 py-3 rounded-xl hover:bg-blue-50 transition flex items-center justify-center shrink-0">
+                        <SlidersHorizontal size={16} />
                       </button>
                       <button
                         onClick={() => onStartGame(selected.id)}

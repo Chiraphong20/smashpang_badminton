@@ -191,3 +191,10 @@ export interface PlayerProfile {
   note?: string;
   avatar?: string; // data URL (jpeg ย่อเป็นสี่เหลี่ยมจัตุรัสเล็ก ๆ)
 }
+
+// ตัวเลือกการจัดผู้เล่นอัตโนมัติ
+//  mode: games = เลือกคนที่เล่นน้อยสุด · rank = เอาระดับมือใกล้กัน/เท่ากันลงด้วยกัน · both = ผสม (ค่าเริ่มต้น)
+//  rankMode: near = ต่างกันได้ไม่เกิน 2 ระดับ · same = ระดับมือเดียวกัน (ใช้กับ rank/both)
+//  ranks: จำกัดเฉพาะระดับมือที่เลือก (ว่าง = ทุกระดับ)
+export interface AutoMatchOpts { mode: 'games' | 'rank' | 'both'; rankMode: 'near' | 'same'; ranks: Rank[] }
+export const DEFAULT_AUTO_OPTS: AutoMatchOpts = { mode: 'both', rankMode: 'near', ranks: [] };
