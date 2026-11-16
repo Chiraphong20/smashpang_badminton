@@ -8,6 +8,7 @@ import { PlayerProfileModal } from './PlayerProfileModal';
 import { PlayerBadge } from './Avatar';
 import { SkillBoard } from './SkillBoard';
 import { BulkAvatarModal } from './BulkAvatarModal';
+import { AddFromSearch } from './DashboardTab';
 
 interface Props {
   members: Member[];
@@ -20,6 +21,8 @@ interface Props {
   onSearch: (query: string) => void;
   onRemove: (id: string) => void;
   onAddMember: () => void;
+  /** เพิ่มสมาชิกใหม่ทันทีจากคำค้นหาที่ไม่เจอ */
+  onNewMember?: (name: string, rank: Rank) => boolean | void;
   onImportLine: () => void;
   onUpdateRank: (memberId: string, rank: Rank) => void;
   onUpdateName: (memberId: string, name: string) => void;
@@ -39,7 +42,7 @@ const chargedOf = (m: Member) => Math.round((m.totalCourt || 0) + (m.totalShuttl
 const paidOf = (m: Member) => Math.max(0, chargedOf(m) - Math.round(m.balance));
 
 export function MembersTab({ 
-  members, groupName = '', gameHistory = [], sessionHistory = [], profiles = {}, onSaveProfile, searchQuery, onSearch, onRemove, onAddMember, onImportLine, 
+  members, groupName = '', gameHistory = [], sessionHistory = [], profiles = {}, onSaveProfile, searchQuery, onSearch, onRemove, onAddMember, onNewMember, onImportLine, 
   onUpdateRank, onUpdateName, onAddCourt, onCheckIn,
   onBulkCheckIn, onBulkRemove, onBulkUpdateRank
 }: Props) {
@@ -380,11 +383,13 @@ export function MembersTab({
         )}
       </AnimatePresence>
 
-      {filtered.length === 0 && (
+      {filtered.length === 0 && (onNewMember && searchQuery.trim()
+        ? <div className="bg-white rounded-3xl border border-on-surface/5"><AddFromSearch name={searchQuery.trim()} onAdd={onNewMember} onDone={() => onSearch('')} /></div>
+        : (
         <div className="text-center py-20 text-on-surface/30">
           <p className="font-bold">ไม่พบผู้เล่น</p>
         </div>
-      )}
+      ))}
       </>)}
       {rankPickId && (() => {
         const m = members.find(x => x.id === rankPickId);

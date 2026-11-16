@@ -1777,6 +1777,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
                     onSearch={setSearchQuery}
                     onRemove={removeMember}
                     onAddMember={() => { setImportIsSession(false); setShowAddMember(true); }}
+                    onNewMember={(n, r) => addMember(n, r, true)}
                     onImportLine={() => { setImportIsSession(false); setShowImport(true); }}
                     onUpdateRank={updateMemberRank}
                     onUpdateName={updateMemberName}

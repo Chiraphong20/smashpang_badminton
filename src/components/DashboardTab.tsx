@@ -489,7 +489,7 @@ function TreatMemberPicker({ title, subtitle, members, excludeId, onSelect, onCl
 }
 
 // ค้นหาแล้วไม่เจอ → เพิ่มเป็นสมาชิกใหม่ได้เลย
-function AddFromSearch({ name, onAdd, onDone }: { name: string; onAdd: (name: string, rank: Rank) => boolean | void; onDone: () => void }) {
+export function AddFromSearch({ name, onAdd, onDone }: { name: string; onAdd: (name: string, rank: Rank) => boolean | void; onDone: () => void }) {
   const [rank, setRank] = useState<Rank>(() => { try { return (localStorage.getItem('sp_new_rank') as Rank) || '?'; } catch { return '?'; } });
   return (
     <div className="py-10 px-4 text-center space-y-3">
