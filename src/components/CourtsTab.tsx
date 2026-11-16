@@ -498,6 +498,29 @@ function AutoMatchModal({ members, profiles = {}, opts, onChange, onRun, onClose
   );
 }
 
+// ── วิดีโอสอนใช้ (เล่นในหน้านี้) ─────────────────────────────────────────────
+function GuideModal({ onClose }: { onClose: () => void }) {
+  return createPortal(
+    <div className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-4" onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+      <div className="absolute inset-0 bg-on-surface/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 bg-white rounded-[1.75rem] shadow-2xl w-full max-w-sm flex flex-col max-h-[94vh]" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 px-5 pt-4 pb-3 shrink-0">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-headline font-black text-lg leading-tight">วิธีจัดคนลงคอร์ท</h3>
+            <p className="text-xs font-bold text-on-surface/45">ดูแล้วใช้ได้เลย · ไม่มีเสียง อ่านคำอธิบายในคลิป</p>
+          </div>
+          <button onClick={onClose} className="p-2 -mr-2 rounded-full hover:bg-background" aria-label="ปิด"><X size={20} /></button>
+        </div>
+        <div className="px-4 pb-4 min-h-0">
+          <video src="/guide/courts.mp4" controls autoPlay muted loop playsInline preload="metadata"
+            className="w-full max-h-[78vh] rounded-2xl bg-black object-contain" />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Slot Card ────────────────────────────────────────────────────────────────
 export function SlotCard({ slotIndex, courtId, playerId, team, members, onSelect, locked, openRequest, profiles = {}, pickAll = false, sheet = false, multi }: {
   key?: number;
@@ -924,6 +947,10 @@ export function CourtsTab({
   });
   const setAutoOpts = (o: AutoMatchOpts) => { setAutoOptsState(o); try { localStorage.setItem('sp_auto_opts', JSON.stringify(o)); } catch { /* storage blocked */ } };
   const [showAuto, setShowAuto] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  // โหมดง่าย: ซ่อนปุ่มขั้นสูง (สลับทีม / ตัวเลือกจัดอัตโนมัติ / คิวล่วงหน้า) · ค่าเริ่มต้น = เปิด (ผู้ใช้ใหม่เห็นแค่ที่จำเป็น)
+  const [simple, setSimpleState] = useState<boolean>(() => { try { return localStorage.getItem('sp_courts_simple') !== '0'; } catch { return true; } });
+  const setSimple = (v: boolean) => { setSimpleState(v); try { localStorage.setItem('sp_courts_simple', v ? '1' : '0'); } catch { /* storage blocked */ } };
   const [sortBy, setSortBy] = useState<'queue' | 'wait' | 'games'>('queue');
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
@@ -1266,6 +1293,8 @@ export function CourtsTab({
         );
       })()}
 
+      {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
+
       {/* ตัวเลือกจัดอัตโนมัติ */}
       {showAuto && selected && (
         <AutoMatchModal
@@ -1379,9 +1408,9 @@ export function CourtsTab({
           <Plus size={18} /> เพิ่มคอร์ท
         </button>
 
-        <span className="hidden 2xl:flex items-center text-xs font-semibold text-on-surface/30 ml-1">
+        {!simple && <span className="hidden 2xl:flex items-center text-xs font-semibold text-on-surface/30 ml-1">
           ←/→ สลับคอร์ท • 1-4 เพิ่มผู้เล่น • Enter เริ่ม/จบเกม
-        </span>
+        </span>}
       </div>
 
       {selected ? (
@@ -1529,9 +1558,17 @@ export function CourtsTab({
                     </span>
                   )}
                 </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                <button onClick={() => setShowGuide(true)} aria-label="ดูวิดีโอสอนใช้"
+                  className="px-3 py-2 rounded-xl bg-amber-100 text-amber-800 text-xs font-black hover:bg-amber-200 flex items-center gap-1.5">▶ ดูวิธีใช้</button>
+                <div className="flex rounded-xl bg-slate-100 p-0.5 text-xs font-black" role="group" aria-label="โหมดการแสดงผล">
+                  <button onClick={() => setSimple(true)} aria-pressed={simple} className={cn('px-3 py-1.5 rounded-[10px]', simple ? 'bg-white shadow text-primary' : 'text-on-surface/50')}>ง่าย</button>
+                  <button onClick={() => setSimple(false)} aria-pressed={!simple} className={cn('px-3 py-1.5 rounded-[10px]', !simple ? 'bg-white shadow text-primary' : 'text-on-surface/50')}>เต็ม</button>
+                </div>
                 <div className={cn('text-center px-4 py-1.5 rounded-2xl border-2', filledCount === 4 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600')}>
                   <p className="font-headline font-black text-2xl leading-none">{filledCount}/4</p>
                   <p className="text-[11px] font-bold">คน</p>
+                </div>
                 </div>
               </div>
 
@@ -1608,39 +1645,47 @@ export function CourtsTab({
                           ⏭ เอาคิวลง{selected.name} ({allQueueSlots.length} คิว)
                         </button>
                       )}
-                      <button onClick={swapTeams} title="สุ่มจัดคู่ใหม่ — กดซ้ำได้จนกว่าจะถูกใจ"
+                      {!simple && <button onClick={swapTeams} title="สุ่มจัดคู่ใหม่ — กดซ้ำได้จนกว่าจะถูกใจ"
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <RefreshCw size={16} /> สลับทีม
-                      </button>
+                      </button>}
                       <button onClick={() => guardQueue(() => { expectPromptRef.current = true; onAutoMatch(selected.id, autoOpts); })}
                         className="flex-1 lg:flex-none border-2 border-blue-400 text-blue-700 bg-white px-4 py-3 rounded-xl font-black text-sm hover:bg-blue-50 transition flex items-center justify-center gap-2 whitespace-nowrap">
                         <Wand2 size={16} /> จัดอัตโนมัติ
                         {autoOpts.mode !== 'both' || autoOpts.ranks.length > 0 || autoOpts.rankMode !== 'near'
                           ? <span className="text-[10px] font-black bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">ปรับแล้ว</span> : null}
                       </button>
-                      <button onClick={() => setShowAuto(true)} aria-label="ตัวเลือกจัดอัตโนมัติ" title="ตัวเลือกจัดอัตโนมัติ: เกมน้อย / ระดับมือ"
+                      {!simple && <button onClick={() => setShowAuto(true)} aria-label="ตัวเลือกจัดอัตโนมัติ" title="ตัวเลือกจัดอัตโนมัติ: เกมน้อย / ระดับมือ"
                         className="border-2 border-blue-400 text-blue-700 bg-white w-12 py-3 rounded-xl hover:bg-blue-50 transition flex items-center justify-center shrink-0">
                         <SlidersHorizontal size={16} />
-                      </button>
+                      </button>}
+                      {filledCount > 0 && (
+                        <button onClick={() => { selected.players.forEach((pid, i) => { if (pid) onRemovePlayer(selected.id, i); }); }} aria-label="ล้างผู้เล่นที่จัดไว้"
+                          className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-black text-sm border-2 border-slate-300 text-slate-600 bg-white hover:bg-slate-50 active:scale-95 transition whitespace-nowrap">
+                          <RotateCcw size={15} /> ล้างผู้เล่น
+                        </button>
+                      )}
                       <button
                         onClick={() => onStartGame(selected.id)}
                         disabled={filledCount !== 4}
                         className={cn(
                           'flex-[2] lg:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-black text-sm shadow-lg transition-all whitespace-nowrap',
                           filledCount === 4
-                            ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-500 ring-4 ring-emerald-200 basis-full lg:basis-auto text-base py-4 animate-pulse'
                             : 'bg-slate-300/70 text-white cursor-not-allowed shadow-none'
                         )}>
                         <span className="text-base leading-none">▶</span> {filledCount === 4 ? 'เริ่มเกม · 4/4 คน' : 'เลือกผู้เล่นให้ครบ 4 คน'}
-                      </button>
-                      <button onClick={() => { if (confirm(`ยืนยันการลบ "${selected.name}"?`)) onDeleteCourt(selected.id); }}
-                        className="text-on-surface/30 hover:text-red-500 p-3 rounded-xl hover:bg-red-500/10 transition-all" title="ลบคอร์ท">
-                        <Trash2 size={20} />
                       </button>
                     </>
                   )}
                 </div>
               </div>
+              {!isActive && (
+                <div className="pt-1 text-center">
+                  <button onClick={() => { if (confirm(`ยืนยันการลบ "${selected.name}" ทั้งคอร์ท?`)) onDeleteCourt(selected.id); }}
+                    className="text-[11px] font-bold text-on-surface/30 hover:text-red-500 underline-offset-2 hover:underline">ลบคอร์ทนี้</button>
+                </div>
+              )}
             </div>
 
             {/* ── Game History for this court ── */}
@@ -1660,7 +1705,7 @@ export function CourtsTab({
             )}
 
           {/* ── Court Queue Panel ─────────────────────────────────────────── */}
-          {selected && (() => {
+          {selected && !simple && (() => {
             const slots = courtQueues[selected.id] || [];
             return (
               <div>
