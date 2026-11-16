@@ -1698,6 +1698,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
               <motion.div key={activeTab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
                 {activeTab === 'dashboard' && (
                   <DashboardTab 
+                    onNewMember={(n, r) => addMember(n, r, true)}
                     mode={activeMode} modeConfig={modeConfig} courtFeePerPerson={courtFeePerPerson} shuttlePrice={shuttlePrice}
                     onChangeConfig={patch => setModeConfig(prev => ({ ...prev, ...patch }))} onApplySplit={applySplit}
                     onOpenCourt={(id) => { setFocusCourtId(id); setActiveTab('courts'); }}

@@ -17,6 +17,8 @@ import { ShuttleIcon } from './ShuttleIcon';
 import { useModalHotkeys } from '../hooks/useModalHotkeys';
 
 interface Props {
+  /** เพิ่มสมาชิกใหม่ (ใช้เมื่อค้นหาแล้วไม่เจอ) */
+  onNewMember?: (name: string, rank: Rank) => boolean | void;
   members: Member[];
   courts: Court[];
   snacks: Snack[];
@@ -486,6 +488,27 @@ function TreatMemberPicker({ title, subtitle, members, excludeId, onSelect, onCl
   );
 }
 
+// ค้นหาแล้วไม่เจอ → เพิ่มเป็นสมาชิกใหม่ได้เลย
+function AddFromSearch({ name, onAdd, onDone }: { name: string; onAdd: (name: string, rank: Rank) => boolean | void; onDone: () => void }) {
+  const [rank, setRank] = useState<Rank>(() => { try { return (localStorage.getItem('sp_new_rank') as Rank) || '?'; } catch { return '?'; } });
+  return (
+    <div className="py-10 px-4 text-center space-y-3">
+      <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary"><Search size={26} /></div>
+      <p className="font-black text-on-surface/60">ไม่พบ “{name}” ในรายชื่อวันนี้</p>
+      <div className="mx-auto max-w-sm rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-3 flex items-center gap-2">
+        <select value={rank} onChange={e => { const r = e.target.value as Rank; setRank(r); try { localStorage.setItem('sp_new_rank', r); } catch { /* ignore */ } }}
+          aria-label="ระดับมือผู้เล่นใหม่" className="flex-1 min-w-0 bg-white rounded-xl border border-on-surface/10 px-2 py-2 text-sm font-bold">
+          <option value="?">ยังไม่ระบุระดับมือ</option>
+          {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <button type="button" aria-label="เพิ่มสมาชิกใหม่จากคำค้นหา" onClick={() => { if (onAdd(name, rank) !== false) onDone(); }}
+          className="shrink-0 px-4 py-2 rounded-xl bg-primary text-white text-sm font-black active:scale-95">+ เพิ่ม “{name}”</button>
+      </div>
+      <p className="text-[11px] font-semibold text-on-surface/40">เพิ่มแล้วเข้าคิวรอ และขึ้นในรายการนี้ทันที</p>
+    </div>
+  );
+}
+
 export function DashboardTab({
   members, courts, snacks, paymentHistory, gameHistory,
   onAddSnack, onUpdateRank, onRemoveSnack, onUpdateSnackPrice, viewingSession, onCloseSession,
@@ -494,7 +517,7 @@ export function DashboardTab({
   onAddCourt, isSidebarCollapsed, onCheckIn, onRemove, onResetDay,
   onClearBoard, onUpdateGame,
   isSyncing, onImportLine,
-  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay, onChangePromptPay, canEditPromptPay = true, promptPayOn = true, productsOn = true, onChangeCourtFee, onChangeShuttlePrice
+  sessionStartDate, onOpenCourt, mode, modeConfig, courtFeePerPerson, shuttlePrice, onChangeConfig, onApplySplit, onSwitchMode, allowedModes, profiles = {}, promptPay, onChangePromptPay, canEditPromptPay = true, promptPayOn = true, productsOn = true, onChangeCourtFee, onChangeShuttlePrice, onNewMember
 }: Props) {
   const [showPayQr, setShowPayQr] = useState(false);
   const [editPrice, setEditPrice] = useState(false);
@@ -1061,7 +1084,9 @@ export function DashboardTab({
               เลือกทุกคนที่ค้างชำระ
             </label>
           )}
-          {sortedMembers.length === 0 ? (
+          {sortedMembers.length === 0 && !isReadOnly && onNewMember && dbSearch.trim() ? (
+            <AddFromSearch name={dbSearch.trim()} onAdd={onNewMember} onDone={() => setDbSearch('')} />
+          ) : sortedMembers.length === 0 ? (
             <div className="py-12 text-center space-y-2">
               <div className="w-14 h-14 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto text-on-surface/25"><Calendar size={28} /></div>
               <p className="font-black text-on-surface/40">วันนี้ไม่ได้มีตีเกม</p>
@@ -1219,7 +1244,9 @@ export function DashboardTab({
 
         {/* Rows */}
         <div className="divide-y divide-on-surface/5 overflow-y-auto max-h-[60vh] custom-scrollbar">
-          {sortedMembers.length === 0 ? (
+          {sortedMembers.length === 0 && !isReadOnly && onNewMember && dbSearch.trim() ? (
+            <AddFromSearch name={dbSearch.trim()} onAdd={onNewMember} onDone={() => setDbSearch('')} />
+          ) : sortedMembers.length === 0 ? (
             <div className="px-6 py-20 text-center space-y-4">
               <div className="w-16 h-16 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto text-on-surface/20">
                 <Calendar size={32} />
