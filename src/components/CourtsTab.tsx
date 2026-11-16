@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Bolt, X, Plus, Trash2, ShoppingCart, Search, Check, RotateCcw, Lock, ChevronDown, ChevronRight, RefreshCw, Wand2, ArrowDownWideNarrow, BarChart3, SlidersHorizontal, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { Member, Court, Snack, GameRecord, Rank, RANKS, AutoMatchOpts, DEFAULT_AUTO_OPTS, RANK_WEIGHTS, RANK_COLORS, RANK_LEVEL_LABELS, CourtQueueSlot, QueuePlayer, SessionMode, PlayerProfile } from '../types';
+import { Member, Court, Snack, GameRecord, Rank, RANKS, RANK_GROUPS, AutoMatchOpts, DEFAULT_AUTO_OPTS, RANK_WEIGHTS, RANK_COLORS, RANK_LEVEL_LABELS, CourtQueueSlot, QueuePlayer, SessionMode, PlayerProfile } from '../types';
 import { format } from 'date-fns';
 import { POSModal } from './POSModal';
 import { PlayerBadge } from './Avatar';
@@ -189,14 +189,6 @@ export function PlayerPicker({ members, currentPlayerId, onSelect, onClose, posi
 // ใช้ตอนเอาคนลงคอร์ด: แตะช่องว่างแล้วเลือกชื่อหลายคนในหน้าต่างเดียว (สูงสุดเท่าช่องว่าง) แล้วกดตกลง
 // ไม่เด้งคีย์บอร์ดบนมือถือเอง (จอไม่ขยับ) — แตะช่องค้นหาเองเมื่ออยากพิมพ์
 // กลุ่มระดับมือสำหรับตัวกรองในหน้าต่างเลือกผู้เล่น
-const RANK_GROUPS: { id: string; label: string; ranks: Rank[] }[] = [
-  { id: 'P', label: 'P / N', ranks: RANKS.slice(0, 4) },
-  { id: 'S', label: 'S', ranks: RANKS.slice(4, 7) },
-  { id: 'S-', label: 'S-', ranks: RANKS.slice(7, 10) },
-  { id: 'BG', label: 'BG', ranks: RANKS.slice(10, 13) },
-  { id: 'VIP', label: 'VIP', ranks: RANKS.slice(13) },
-];
-
 const NewMemberCtx = React.createContext<((name: string, rank: Rank) => boolean | void) | null>(null);
 
 export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = null, max, slots, pickAll = false, onConfirm, onRemove, onClose }: {
@@ -218,7 +210,7 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
   const [picked, setPicked] = useState<string[]>([]);
   const [hi, setHi] = useState(0);
   const newMember = React.useContext(NewMemberCtx);
-  const [newRank, setNewRank] = useState<Rank>(() => { try { return (localStorage.getItem('sp_new_rank') as Rank) || 'P'; } catch { return 'P'; } });
+  const [newRank, setNewRank] = useState<Rank>(() => { try { return (localStorage.getItem('sp_new_rank') as Rank) || '?'; } catch { return '?'; } });
   const single = max <= 1;
   const searchRef = useRef<HTMLInputElement>(null);
   // เครื่องที่มีเมาส์/คีย์บอร์ดจริง (คอม) โฟกัสช่องค้นหาให้เลย · มือถือไม่โฟกัส เพื่อไม่ให้แป้นพิมพ์เด้งขึ้นมาบังรายชื่อ
@@ -229,7 +221,7 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
   // ตัวกรองระดับมือ (เลือกได้หลายกลุ่ม · ไม่เลือก = ทั้งหมด)
   const [rankGroups, setRankGroups] = useState<string[]>([]);
   const pool = members.filter(m => pickAll || m.status === 'waiting' || m.id === currentPlayerId);
-  const groupOf = (r: Rank) => RANK_GROUPS.find(g => g.ranks.includes(r))?.id ?? 'P';
+  const groupOf = (r: Rank) => RANK_GROUPS.find(g => g.ranks.includes(r))?.id ?? '?';
   const list = pool
     .filter(m => m.name.toLowerCase().includes(q.trim().toLowerCase()) && (rankGroups.length === 0 || rankGroups.includes(groupOf(m.rank))))
     .sort((a, b) => (a.gamesPlayed !== b.gamesPlayed ? a.gamesPlayed - b.gamesPlayed : a.checkInTime - b.checkInTime));
@@ -322,6 +314,7 @@ export function PlayerModalPicker({ members, profiles = {}, currentPlayerId = nu
                 <label className="text-xs font-bold text-on-surface/50 shrink-0">ระดับมือ</label>
                 <select value={newRank} onChange={e => { const r = e.target.value as Rank; setNewRank(r); try { localStorage.setItem('sp_new_rank', r); } catch { /* ignore */ } }}
                   aria-label="ระดับมือผู้เล่นใหม่" className="flex-1 min-w-0 bg-white rounded-xl border border-on-surface/10 px-2 py-2 text-sm font-bold">
+                  <option value="?">ยังไม่ระบุ</option>
                   {RANKS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
                 <button type="button" aria-label="เพิ่มผู้เล่นใหม่"

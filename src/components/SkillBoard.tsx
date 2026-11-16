@@ -14,12 +14,13 @@ interface Props {
 }
 
 // สีประจำกลุ่มระดับมือ (P/N · S · BG · VIP)
-const family = (r: Rank) => (r.startsWith('VIP') ? 'vip' : r.startsWith('BG') ? 'bg' : r.startsWith('S') ? 's' : 'p');
+const family = (r: Rank) => (r.startsWith('VIP') ? 'vip' : r.startsWith('BG') ? 'bg' : r.startsWith('S') ? 's' : r === '?' ? 'none' : 'p');
 const FAM = {
   p: { head: 'from-indigo-500 to-blue-500', tile: 'from-indigo-400 to-blue-500', ring: 'border-indigo-200', soft: 'bg-indigo-50' },
   s: { head: 'from-teal-500 to-emerald-500', tile: 'from-teal-400 to-emerald-500', ring: 'border-teal-200', soft: 'bg-teal-50' },
   bg: { head: 'from-amber-500 to-orange-500', tile: 'from-amber-400 to-orange-500', ring: 'border-amber-200', soft: 'bg-amber-50' },
   vip: { head: 'from-rose-500 to-pink-500', tile: 'from-rose-400 to-pink-500', ring: 'border-rose-200', soft: 'bg-rose-50' },
+  none: { head: 'from-slate-400 to-slate-500', tile: 'from-slate-300 to-slate-400', ring: 'border-slate-200', soft: 'bg-slate-50' },
 } as const;
 
 // แผงตารางระดับมือ — จัดกลุ่มผู้เล่นของก๊วนนี้ตามระดับมือ (มือสูง → ต่ำ) พร้อมรูปโปรไฟล์ บันทึกเป็นรูปแชร์ได้
@@ -27,7 +28,7 @@ export function SkillBoard({ members, profiles, groupName, onOpenProfile }: Prop
   const ref = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
 
-  const levels = [...RANKS].sort((a, b) => RANK_WEIGHTS[b] - RANK_WEIGHTS[a])
+  const levels = [...RANKS, '?' as Rank].sort((a, b) => (b === '?' ? -1 : RANK_WEIGHTS[b]) - (a === '?' ? -1 : RANK_WEIGHTS[a]))
     .map(r => ({ rank: r, list: members.filter(m => m.rank === r).sort((a, b) => a.name.localeCompare(b.name, 'th')) }))
     .filter(l => l.list.length > 0);
 
@@ -73,7 +74,7 @@ export function SkillBoard({ members, profiles, groupName, onOpenProfile }: Prop
             <section key={rank} className={cn('rounded-[1.75rem] bg-white/90 border-2 p-3 sm:p-4 shadow-sm', f.ring)}>
               <div className="flex justify-center -mt-7 mb-3">
                 <span className={cn('px-6 py-1.5 rounded-2xl text-white font-headline font-black text-lg sm:text-xl shadow-md bg-gradient-to-r', f.head)}>
-                  มือ {rank}{RANK_LEVEL_LABELS[rank] ? ` · ${RANK_LEVEL_LABELS[rank]}` : ''} <span className="text-sm font-bold opacity-80">({list.length})</span>
+                  {rank === '?' ? 'ยังไม่ระบุระดับมือ' : `มือ ${rank}`}{RANK_LEVEL_LABELS[rank] ? ` · ${RANK_LEVEL_LABELS[rank]}` : ''} <span className="text-sm font-bold opacity-80">({list.length})</span>
                 </span>
               </div>
               <div className="grid grid-cols-4 gap-2 sm:gap-3">

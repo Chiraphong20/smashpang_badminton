@@ -16,7 +16,7 @@ interface Props {
 
 export function AddMemberModal({ open, onClose, onAdd, existingNames, rankMemory = {} }: Props) {
   const [name, setName] = useState('');
-  const [rank, setRank] = useState<Rank>('P');
+  const [rank, setRank] = useState<Rank>('?');
   const [added, setAdded] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -40,7 +40,7 @@ export function AddMemberModal({ open, onClose, onAdd, existingNames, rankMemory
     if (!n) return;
     onAdd(n, rank);
     setName('');
-    setRank('P');
+    setRank('?');
     setAdded([]);
   };
 
@@ -51,7 +51,7 @@ export function AddMemberModal({ open, onClose, onAdd, existingNames, rankMemory
     if (onAdd(n, rank, true) === false) return;
     setAdded(prev => [...prev, n]);
     setName('');
-    setRank('P');
+    setRank('?');
     inputRef.current?.focus();
   };
 
@@ -95,6 +95,12 @@ export function AddMemberModal({ open, onClose, onAdd, existingNames, rankMemory
 
               <div className="space-y-3">
                 <label className="text-xs font-bold text-on-surface/50 ml-2">ระดับมือ</label>
+                <label className="relative cursor-pointer block">
+                  <input type="radio" name="rank" value="?" checked={rank === '?'} onChange={() => setRank('?')} className="peer sr-only" />
+                  <div className={cn('py-2.5 rounded-xl text-center font-black text-xs transition-all border-2 border-transparent peer-checked:border-primary peer-checked:ring-2 peer-checked:ring-primary/20', RANK_COLORS['?'])}>
+                    ยังไม่ระบุระดับมือ (ตั้งทีหลังได้)
+                  </div>
+                </label>
                 <div className="grid grid-cols-5 gap-1.5">
                   {RANKS.map(r => (
                     <label key={r} className="relative cursor-pointer">

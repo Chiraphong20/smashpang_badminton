@@ -260,14 +260,38 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
                           <p className="text-sm font-black text-primary">฿{(g.shuttleCostPerPerson + (g.courtFeePerPerson || 0)).toFixed(0)}</p>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {partners.map(p => (
-                          <span key={p.id} className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-on-surface/5 rounded-lg text-xs font-semibold text-on-surface/60">
-                            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", RANK_COLORS[p.rank])} />
-                            {p.name}
+                      {(() => {
+                        const myIdx = g.players.findIndex(p => p.id === member.id);
+                        const four = g.players.length === 4 && myIdx >= 0;
+                        const mates = four ? g.players.filter((p, i) => i !== myIdx && (i < 2) === (myIdx < 2)) : [];
+                        const foes = four ? g.players.filter((_, i) => (i < 2) !== (myIdx < 2)) : [];
+                        const scored = typeof g.scoreA === 'number' && typeof g.scoreB === 'number';
+                        const mine = scored ? (myIdx < 2 ? g.scoreA! : g.scoreB!) : 0;
+                        const theirs = scored ? (myIdx < 2 ? g.scoreB! : g.scoreA!) : 0;
+                        const chip = (p: typeof partners[number]) => (
+                          <span key={p.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-on-surface/5 rounded-lg text-xs font-bold text-on-surface/70">
+                            <span className={cn("w-2 h-2 rounded-full shrink-0", RANK_COLORS[p.rank])} />{p.name}
                           </span>
-                        ))}
-                      </div>
+                        );
+                        if (!four) return <div className="flex flex-wrap gap-1.5">{partners.map(chip)}</div>;
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex items-start gap-2">
+                              <span className="shrink-0 w-[4.5rem] text-[11px] font-black text-blue-600 bg-blue-50 rounded-md px-2 py-1 text-center">🤝 คู่กับ</span>
+                              <div className="flex flex-wrap gap-1.5">{mates.map(chip)}</div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="shrink-0 w-[4.5rem] text-[11px] font-black text-orange-600 bg-orange-50 rounded-md px-2 py-1 text-center">⚔️ เจอกับ</span>
+                              <div className="flex flex-wrap gap-1.5">{foes.map(chip)}</div>
+                            </div>
+                            {scored && (
+                              <p className={cn('text-xs font-black', mine > theirs ? 'text-emerald-600' : mine < theirs ? 'text-red-500' : 'text-on-surface/50')}>
+                                {mine > theirs ? '🏆 ชนะ' : mine < theirs ? 'แพ้' : 'เสมอ'} {mine}–{theirs}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

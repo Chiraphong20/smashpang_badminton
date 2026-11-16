@@ -3,7 +3,8 @@ export type Rank =
   | 'BG1' | 'BG2' | 'BG3'
   | 'S-1' | 'S-2' | 'S-3'
   | 'S1' | 'S2' | 'S3'
-  | 'N' | 'P-' | 'P' | 'P+';
+  | 'N' | 'P-' | 'P' | 'P+'
+  | '?'; // ยังไม่ได้ระบุระดับมือ
 
 export interface Member {
   id: string;
@@ -149,7 +150,8 @@ export const RANK_LEVEL_LABELS: Record<Rank, string> = {
   'S3': '', 'S2': '', 'S1': '',
   'S-3': '', 'S-2': '', 'S-1': '',
   'BG3': '', 'BG2': '', 'BG1': '',
-  'VIP3': '', 'VIP2': '', 'VIP1': ''
+  'VIP3': '', 'VIP2': '', 'VIP1': '',
+  '?': ''
 };
 
 export const RANK_COLORS: Record<Rank, string> = {
@@ -169,6 +171,7 @@ export const RANK_COLORS: Record<Rank, string> = {
   'VIP3': 'bg-error text-white',
   'VIP2': 'bg-error text-white',
   'VIP1': 'bg-error text-white',
+  '?': 'bg-on-surface/15 text-on-surface/50',
 };
 
 export const RANK_WEIGHTS: Record<Rank, number> = {
@@ -180,7 +183,21 @@ export const RANK_WEIGHTS: Record<Rank, number> = {
   'S-3': 9, 'S-2': 8, 'S-1': 7,
   'BG3': 6, 'BG2': 5, 'BG1': 4,
   'VIP3': 3, 'VIP2': 2, 'VIP1': 1,
+  '?': 8, // ยังไม่ระบุ: นับเป็นกลางๆ ตอนจัดทีม
 };
+
+/** ยังไม่ได้ระบุระดับมือ (ไม่อยู่ใน RANKS ที่เลือกได้) */
+export const UNSET_RANK: Rank = '?';
+
+// กลุ่มระดับมือสำหรับตัวกรอง
+export const RANK_GROUPS: { id: string; label: string; ranks: Rank[] }[] = [
+  { id: 'P', label: 'P / N', ranks: RANKS.slice(0, 4) },
+  { id: 'S', label: 'S', ranks: RANKS.slice(4, 7) },
+  { id: 'S-', label: 'S-', ranks: RANKS.slice(7, 10) },
+  { id: 'BG', label: 'BG', ranks: RANKS.slice(10, 13) },
+  { id: 'VIP', label: 'VIP', ranks: RANKS.slice(13) },
+  { id: '?', label: 'ยังไม่ระบุ', ranks: ['?'] },
+];
 
 
 // โปรไฟล์ผู้เล่น (เพิ่มเอง) — เก็บแยกจากรายชื่อสมาชิก คีย์ด้วย member.id

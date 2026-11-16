@@ -607,7 +607,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
     if (!(existing && isTodayPlayer(existing)) && !canAddToday(1)) return false;
 
     // Auto-update rank memory when a member is added manually
-    setRankMemory(prev => ({ ...prev, [name]: rank }));
+    if (rank !== '?') setRankMemory(prev => ({ ...prev, [name]: rank }));
     // บันทึกวันเริ่มต้นก๊วนถ้ายังไม่มี
     setSessionStartDate(prev => prev ?? Date.now());
 
@@ -1216,7 +1216,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
   const updateMemberRank = (memberId: string, rank: Rank) => {
     setMembers(prev => prev.map(m => {
       if (m.id === memberId) {
-        setRankMemory(prevMem => ({ ...prevMem, [m.name]: rank }));
+        if (rank !== '?') setRankMemory(prevMem => ({ ...prevMem, [m.name]: rank }));
         return { ...m, rank };
       }
       return m;
@@ -1351,7 +1351,7 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
 
     setRankMemory(prev => {
       const next = { ...prev };
-      list.forEach(item => { next[item.name] = item.rank; });
+      list.forEach(item => { if (item.rank !== '?') next[item.name] = item.rank; });
       return next;
     });
 

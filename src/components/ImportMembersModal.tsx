@@ -75,7 +75,7 @@ export function ImportMembersModal({ open, onClose, onImport, rankMemory, existi
       setParsed(results.map((res, i) => ({
         id: `import-${i}`,
         name: res.name,
-        rank: res.rank || existingRanks[res.name.trim().toLowerCase()] || rankMemory[res.name] || ('P' as Rank)
+        rank: res.rank || existingRanks[res.name.trim().toLowerCase()] || rankMemory[res.name] || ('?' as Rank)
       })));
       setStep('confirm');
       confirmEnteredAtRef.current = Date.now();

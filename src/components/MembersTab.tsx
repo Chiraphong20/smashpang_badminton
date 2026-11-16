@@ -3,7 +3,7 @@ import { UserPlus, Trash2, ChevronRight, FileText, X, Search, UserRound, LayoutG
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { RankPickerModal } from './RankPickerModal';
-import { Member, Rank, RANKS, RANK_COLORS, RANK_LEVEL_LABELS, GameRecord, SessionRecord, PlayerProfile } from '../types';
+import { Member, Rank, RANKS, RANK_GROUPS, RANK_COLORS, RANK_LEVEL_LABELS, GameRecord, SessionRecord, PlayerProfile } from '../types';
 import { PlayerProfileModal } from './PlayerProfileModal';
 import { PlayerBadge } from './Avatar';
 import { SkillBoard } from './SkillBoard';
@@ -53,18 +53,24 @@ export function MembersTab({
   const [showBulkAvatar, setShowBulkAvatar] = useState(false);
   const [pageSize, setPageSize] = useState<number>(() => { try { const v = Number(localStorage.getItem('sp_members_pagesize')); return [12, 24, 48].includes(v) ? v : 12; } catch { return 12; } });
   const [page, setPage] = useState(1);
+  // ตัวกรองเพิ่มเติม: กลุ่มระดับมือ (เลือกได้หลายกลุ่ม) · ยังไม่มีรูปโปรไฟล์
+  const [rankSel, setRankSel] = useState<string[]>([]);
+  const [noPhoto, setNoPhoto] = useState(false);
+  const groupOf = (r: Rank) => RANK_GROUPS.find(g => g.ranks.includes(r))?.id ?? '?';
 
   const filtered = members.filter(m => {
     const matchSearch = m.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchFilter = filter === 'all' || m.status === filter;
-    return matchSearch && matchFilter;
+    const matchRank = rankSel.length === 0 || rankSel.includes(groupOf(m.rank));
+    const matchPhoto = !noPhoto || !profiles[m.id]?.avatar;
+    return matchSearch && matchFilter && matchRank && matchPhoto;
   }).sort((a, b) => a.checkInTime - b.checkInTime);
 
   // แบ่งหน้า: กลับไปหน้า 1 เมื่อเปลี่ยนตัวกรอง/คำค้น และไม่ให้เกินจำนวนหน้าที่มี (เช่น หลังลบคน)
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const curPage = Math.min(page, pageCount);
   const paged = filtered.slice((curPage - 1) * pageSize, curPage * pageSize);
-  useEffect(() => { setPage(1); }, [filter, searchQuery, pageSize]);
+  useEffect(() => { setPage(1); }, [filter, searchQuery, pageSize, rankSel, noPhoto]);
   const changePageSize = (n: number) => { setPageSize(n); try { localStorage.setItem('sp_members_pagesize', String(n)); } catch { /* storage blocked */ } };
   const pageNums = (() => {
     const out: (number | '…')[] = [];
@@ -143,6 +149,29 @@ export function MembersTab({
         </div>
       </div>
 
+      {/* ตัวกรองโปรไฟล์ / ระดับมือ */}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="กรองระดับมือและโปรไฟล์">
+        <button onClick={() => setNoPhoto(v => !v)} aria-pressed={noPhoto}
+          className={cn('px-3 py-1.5 rounded-full text-xs font-black border flex items-center gap-1.5 transition-colors', noPhoto ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-on-surface/60 border-on-surface/10 hover:border-amber-400')}>
+          <Camera size={13} /> ยังไม่มีรูปโปรไฟล์ <span className="opacity-75">{members.filter(m => !profiles[m.id]?.avatar).length}</span>
+        </button>
+        <span className="w-px h-5 bg-on-surface/10 mx-1" />
+        <span className="text-xs font-bold text-on-surface/40">ระดับมือ</span>
+        {RANK_GROUPS.map(g => {
+          const n = members.filter(m => g.ranks.includes(m.rank)).length;
+          const on = rankSel.includes(g.id);
+          const unset = g.id === '?';
+          return (
+            <button key={g.id} disabled={n === 0 && !on} onClick={() => setRankSel(prev => on ? prev.filter(x => x !== g.id) : [...prev, g.id])} aria-pressed={on}
+              className={cn('px-3 py-1.5 rounded-full text-xs font-black border transition-colors disabled:opacity-35',
+                on ? (unset ? 'bg-slate-500 text-white border-slate-500' : 'bg-primary text-white border-primary') : unset ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-white text-on-surface/60 border-on-surface/10 hover:border-primary/40')}>
+              {g.label} <span className="opacity-70">{n}</span>
+            </button>
+          );
+        })}
+        {(rankSel.length > 0 || noPhoto) && <button onClick={() => { setRankSel([]); setNoPhoto(false); }} className="text-xs font-black text-primary hover:underline px-1">ล้างตัวกรอง</button>}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {/* Select All / Deselect All */}
         {filtered.length > 0 && (
@@ -195,6 +224,7 @@ export function MembersTab({
                     />
                   </div>
                   {profiles[member.id]?.nickname && <p className="text-xs font-semibold text-on-surface/50 truncate">“{profiles[member.id]!.nickname}”</p>}
+                  {member.rank === '?' && <button type="button" onClick={(e) => { e.stopPropagation(); setRankPickId(member.id); }} className="mt-0.5 text-[11px] font-black text-slate-500 bg-slate-100 rounded-full px-2 py-0.5 hover:bg-slate-200">ยังไม่ระบุระดับมือ · แตะเพื่อตั้ง</button>}
                   {RANK_LEVEL_LABELS[member.rank] && <p className="text-xs font-bold text-primary">{RANK_LEVEL_LABELS[member.rank]}</p>}
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-xs font-semibold text-on-surface/45">{member.gamesPlayed} เกม</span>

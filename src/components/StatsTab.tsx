@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { BarChart3, Trophy, Wallet, Swords, Calculator, CalendarRange, Layers, ListOrdered } from 'lucide-react';
+import { BarChart3, Trophy, Wallet, Swords, Calculator, CalendarRange, Layers, ListOrdered, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { PlayerProfileModal } from './PlayerProfileModal';
 import { Avatar } from './Avatar';
@@ -55,6 +55,10 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
   const [modeFilter, setModeFilter] = useState<SessionMode | 'all'>('all');
   const modeOf = (s: SessionRecord): SessionMode => s.mode ?? 'perGame';
   const [metric, setMetric] = useState<Metric>(mode === 'fun' ? 'wins' : 'games');
+  const [pageSize, setPageSize] = useState<number>(() => { try { const v = Number(localStorage.getItem('sp_stats_pagesize')); return [10, 25, 50, 100].includes(v) ? v : 25; } catch { return 25; } });
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [period, from, to, modeFilter, metric, viewMode, pageSize]);
+  const changePageSize = (n: number) => { setPageSize(n); try { localStorage.setItem('sp_stats_pagesize', String(n)); } catch { /* storage blocked */ } };
 
   const isToday = period === 'today';
   const range = useMemo(() => rangeFor(period, from, to), [period, from, to]);
@@ -159,14 +163,41 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
             : period.startsWith('m:') ? format(new Date(period.slice(2) + '-01T00:00:00'), 'MMMM yyyy', { locale: th })
               : `${from ? format(new Date(from + 'T00:00:00'), 'dd/MM/yyyy') : 'เริ่มต้น'} – ${to ? format(new Date(to + 'T00:00:00'), 'dd/MM/yyyy') : 'ปัจจุบัน'}`;
 
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const curPage = Math.min(page, pageCount);
+  const offset = (curPage - 1) * pageSize;
+  const paged = sorted.slice(offset, offset + pageSize);
+  const pageNums = (() => {
+    const out: (number | '…')[] = [];
+    for (let i = 1; i <= pageCount; i++) {
+      if (i === 1 || i === pageCount || Math.abs(i - curPage) <= 1) out.push(i);
+      else if (out[out.length - 1] !== '…') out.push('…');
+    }
+    return out;
+  })();
+
   const card = 'bg-white rounded-3xl p-5 shadow-sm border border-on-surface/5';
   const chip = (on: boolean) => cn('px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-colors', on ? 'bg-primary text-white shadow-sm' : 'bg-white text-on-surface/60 hover:bg-on-surface/5');
   const dateInput = 'px-3 py-2 rounded-xl bg-white border border-on-surface/10 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-primary/20';
   const dispName = (r: Row) => profiles[r.key]?.nickname ? `${r.name}` : r.name;
   const nick = (r: Row) => profiles[r.key]?.nickname;
 
+  const recentMatches = games.length > 0 && (
+        <section className={cn(card, 'space-y-2 min-w-0')}>
+          <h3 className="text-sm font-black text-on-surface/50 flex items-center gap-2"><Swords size={16} className="text-primary" /> แมตซ์ล่าสุด</h3>
+          {[...games].sort((a, b) => b.playedAt - a.playedAt).slice(0, 15).map(g => (
+            <div key={g.id} className="flex items-center gap-3 text-sm py-1.5 border-b border-on-surface/5 last:border-0">
+              <span className="text-xs text-on-surface/40 w-24 shrink-0">{format(g.playedAt, 'dd/MM HH:mm')}</span>
+              <span className={cn('flex-1 truncate', typeof g.scoreA === 'number' && g.scoreA > g.scoreB! && 'font-black text-emerald-700')}>{typeof g.scoreA === 'number' && g.scoreA > g.scoreB! ? '🏆 ' : ''}{g.players.slice(0, 2).map(p => p.name).join(' & ')}</span>
+              <span className="font-headline font-black text-xs text-on-surface/50 shrink-0">{typeof g.scoreA !== 'number' ? 'vs' : g.scoreA === g.scoreB ? 'เสมอ' : 'ชนะ'}</span>
+              <span className={cn('flex-1 truncate text-right', typeof g.scoreA === 'number' && g.scoreB! > g.scoreA && 'font-black text-emerald-700')}>{g.players.slice(2, 4).map(p => p.name).join(' & ')}{typeof g.scoreA === 'number' && g.scoreB! > g.scoreA ? ' 🏆' : ''}</span>
+            </div>
+          ))}
+        </section>
+      );
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-20">
+    <div className="space-y-5 sm:space-y-6 w-full pb-20">
       <div className="flex flex-wrap items-center gap-4">
         <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center">
           <BarChart3 size={24} className="text-primary" />
@@ -311,19 +342,20 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
             </section>
           )}
 
-          <section className={cn(card, 'overflow-x-auto p-0')}>
+          <div className="grid 2xl:grid-cols-[minmax(0,1fr)_24rem] gap-5 items-start">
+          <section className={cn(card, 'overflow-x-auto p-0 min-w-0')}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-on-surface/40 border-b border-on-surface/5">
                   <th className="p-3 w-10">#</th>
                   <th className="p-3">ชื่อ</th>
-                  <th className="p-3 text-center">Tier</th>
-                  <th className="p-3 min-w-[9rem]">แมตซ์{mode === 'buffet' && isToday ? ` (เฉลี่ย ${avgGames.toFixed(1)})` : ''}</th>
-                  <th className="p-3 text-center">วัน</th>
+                  <th className="p-3 text-center hidden sm:table-cell">Tier</th>
+                  <th className="p-3 min-w-[7rem]">แมตซ์{mode === 'buffet' && isToday ? ` (เฉลี่ย ${avgGames.toFixed(1)})` : ''}</th>
+                  <th className="p-3 text-center hidden md:table-cell">วัน</th>
                   <th className="p-3 text-center"><Trophy size={14} className="inline" /> ชนะ</th>
-                  <th className="p-3 text-center">แพ้</th>
-                  <th className="p-3 text-center">เสมอ</th>
-                  <th className="p-3 text-center">%ชนะ</th>
+                  <th className="p-3 text-center hidden md:table-cell">แพ้</th>
+                  <th className="p-3 text-center hidden lg:table-cell">เสมอ</th>
+                  <th className="p-3 text-center hidden sm:table-cell">%ชนะ</th>
                   <th className="p-3 text-right"><Wallet size={14} className="inline" /> เงิน</th>
                 </tr>
               </thead>
@@ -331,7 +363,8 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
                 {sorted.length === 0 && (
                   <tr><td colSpan={10} className="p-8 text-center text-on-surface/30">ยังไม่มีข้อมูลในช่วงเวลานี้</td></tr>
                 )}
-                {sorted.map((r, i) => {
+                {paged.map((r, i0) => {
+                  const i = offset + i0;
                   const behind = mode === 'buffet' && isToday && r.games < avgGames - 0.5;
                   const t = tiers.get(r);
                   return (
@@ -343,7 +376,7 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
                           <span className="font-bold underline-offset-2 hover:underline">{dispName(r)}{nick(r) && <span className="ml-1.5 text-xs font-semibold text-on-surface/40">“{nick(r)}”</span>}</span>
                         </div>
                       </td>
-                      <td className="p-3 text-center">{t ? <span className={cn('inline-flex w-7 h-7 rounded-lg items-center justify-center font-headline font-black text-sm', TIER_STYLE[t].badge)}>{t}</span> : <span className="text-on-surface/20">—</span>}</td>
+                      <td className="p-3 text-center hidden sm:table-cell">{t ? <span className={cn('inline-flex w-7 h-7 rounded-lg items-center justify-center font-headline font-black text-sm', TIER_STYLE[t].badge)}>{t}</span> : <span className="text-on-surface/20">—</span>}</td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-2 bg-background rounded-full overflow-hidden">
@@ -353,34 +386,47 @@ export function StatsTab({ members, gameHistory, sessionHistory, paymentHistory,
                         </div>
                         {behind && <p className="text-[10px] font-bold text-amber-500">ควรได้ตีเพิ่ม</p>}
                       </td>
-                      <td className="p-3 text-center text-on-surface/60 font-bold">{r.days}</td>
+                      <td className="p-3 text-center text-on-surface/60 font-bold hidden md:table-cell">{r.days}</td>
                       <td className="p-3 text-center font-bold text-emerald-600">{r.wins}</td>
-                      <td className="p-3 text-center font-bold text-red-500">{r.losses}</td>
-                      <td className="p-3 text-center text-on-surface/50">{r.draws}</td>
-                      <td className="p-3 text-center">{r.scored ? Math.round((r.wins / r.scored) * 100) + '%' : '—'}</td>
+                      <td className="p-3 text-center font-bold text-red-500 hidden md:table-cell">{r.losses}</td>
+                      <td className="p-3 text-center text-on-surface/50 hidden lg:table-cell">{r.draws}</td>
+                      <td className="p-3 text-center hidden sm:table-cell">{r.scored ? Math.round((r.wins / r.scored) * 100) + '%' : '—'}</td>
                       <td className="p-3 text-right font-bold">฿{r.spent}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            {sorted.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-on-surface/5">
+                <p className="text-xs font-bold text-on-surface/50">แสดง {offset + 1}–{Math.min(offset + pageSize, sorted.length)} จาก {sorted.length} คน</p>
+                {pageCount > 1 && (
+                  <nav className="flex items-center gap-1" aria-label="เลือกหน้า">
+                    <button onClick={() => setPage(1)} disabled={curPage === 1} aria-label="หน้าแรก" className="w-9 h-9 rounded-xl bg-white border border-on-surface/10 flex items-center justify-center disabled:opacity-30"><ChevronsLeft size={16} /></button>
+                    <button onClick={() => setPage(curPage - 1)} disabled={curPage === 1} aria-label="หน้าก่อน" className="w-9 h-9 rounded-xl bg-white border border-on-surface/10 flex items-center justify-center disabled:opacity-30"><ChevronLeft size={16} /></button>
+                    {pageNums.map((n, i) => n === '…'
+                      ? <span key={'e' + i} className="w-6 text-center text-on-surface/30 font-black">…</span>
+                      : <button key={n} onClick={() => setPage(n)} aria-current={n === curPage ? 'page' : undefined}
+                          className={cn('min-w-9 h-9 px-2 rounded-xl font-black text-sm border', n === curPage ? 'bg-primary text-white border-primary shadow' : 'bg-white border-on-surface/10 text-on-surface/70 hover:border-primary/40')}>{n}</button>)}
+                    <button onClick={() => setPage(curPage + 1)} disabled={curPage === pageCount} aria-label="หน้าถัดไป" className="w-9 h-9 rounded-xl bg-white border border-on-surface/10 flex items-center justify-center disabled:opacity-30"><ChevronRight size={16} /></button>
+                    <button onClick={() => setPage(pageCount)} disabled={curPage === pageCount} aria-label="หน้าสุดท้าย" className="w-9 h-9 rounded-xl bg-white border border-on-surface/10 flex items-center justify-center disabled:opacity-30"><ChevronsRight size={16} /></button>
+                  </nav>
+                )}
+                <label className="flex items-center gap-2 text-xs font-bold text-on-surface/50">
+                  ต่อหน้า
+                  <select value={pageSize} onChange={e => changePageSize(Number(e.target.value))} className="px-2 py-1.5 rounded-lg bg-white border border-on-surface/10 font-black text-on-surface">
+                    {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </label>
+              </div>
+            )}
           </section>
+          {recentMatches}
+          </div>
         </>
       )}
+      {viewMode === 'tier' && recentMatches}
 
-      {games.length > 0 && (
-        <section className={cn(card, 'space-y-2')}>
-          <h3 className="text-sm font-black text-on-surface/50 flex items-center gap-2"><Swords size={16} className="text-primary" /> แมตซ์ล่าสุด</h3>
-          {[...games].sort((a, b) => b.playedAt - a.playedAt).slice(0, 15).map(g => (
-            <div key={g.id} className="flex items-center gap-3 text-sm py-1.5 border-b border-on-surface/5 last:border-0">
-              <span className="text-xs text-on-surface/40 w-24 shrink-0">{format(g.playedAt, 'dd/MM HH:mm')}</span>
-              <span className={cn('flex-1 truncate', typeof g.scoreA === 'number' && g.scoreA > g.scoreB! && 'font-black text-emerald-700')}>{typeof g.scoreA === 'number' && g.scoreA > g.scoreB! ? '🏆 ' : ''}{g.players.slice(0, 2).map(p => p.name).join(' & ')}</span>
-              <span className="font-headline font-black text-xs text-on-surface/50 shrink-0">{typeof g.scoreA !== 'number' ? 'vs' : g.scoreA === g.scoreB ? 'เสมอ' : 'ชนะ'}</span>
-              <span className={cn('flex-1 truncate text-right', typeof g.scoreA === 'number' && g.scoreB! > g.scoreA && 'font-black text-emerald-700')}>{g.players.slice(2, 4).map(p => p.name).join(' & ')}{typeof g.scoreA === 'number' && g.scoreB! > g.scoreA ? ' 🏆' : ''}</span>
-            </div>
-          ))}
-        </section>
-      )}
       {profileId && (
         <PlayerProfileModal playerId={profileId} members={members} gameHistory={gameHistory} sessionHistory={sessionHistory}
           profile={profiles[profileId]} onSaveProfile={onSaveProfile} onClose={() => setProfileId(null)} />
