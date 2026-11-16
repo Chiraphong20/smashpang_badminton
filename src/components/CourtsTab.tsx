@@ -842,24 +842,38 @@ function GameRow({ game, onEditGame, onUndoGame, shuttlePrice }: {
         <p className="text-on-surface font-bold text-sm">{format(game.playedAt, 'HH:mm')}</p>
       </div>
 
-      {/* Players */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {teamA.map(p => (
-            <div key={p.id} className={cn('flex items-center gap-1 px-2 py-1 rounded-lg', RANK_COLORS[p.rank])}>
-              <span className="text-xs font-bold">{p.rank}</span>
-              <span className="text-xs font-bold">{p.name}</span>
+      {/* Players: ไฮไลท์ฝั่งที่ชนะ */}
+      {(() => {
+        const scored = typeof game.scoreA === 'number' && typeof game.scoreB === 'number';
+        const win: 'A' | 'B' | 'draw' | null = !scored ? null : game.scoreA! > game.scoreB! ? 'A' : game.scoreB! > game.scoreA! ? 'B' : 'draw';
+        const box = (list: typeof teamA, label: string, tone: 'A' | 'B') => {
+          const won = win === tone, lost = win !== null && win !== 'draw' && win !== tone;
+          return (
+            <div className={cn('flex-1 min-w-[9rem] rounded-xl border-2 px-2.5 py-2 transition-colors',
+              won ? 'border-emerald-400 bg-emerald-50 shadow-sm shadow-emerald-200/70' : tone === 'A' ? 'border-blue-100 bg-blue-50/60' : 'border-orange-100 bg-orange-50/60',
+              lost && 'opacity-55')}>
+              <p className={cn('text-[11px] font-black mb-1 flex items-center gap-1', won ? 'text-emerald-700' : tone === 'A' ? 'text-blue-600' : 'text-orange-600')}>
+                {won ? '🏆' : ''} {label}{won ? ' · ชนะ' : ''}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {list.map(p => (
+                  <span key={p.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-white border border-on-surface/5 text-xs font-bold">
+                    <span className={cn('px-1 rounded text-[10px] font-black', RANK_COLORS[p.rank])}>{p.rank}</span>{p.name}
+                  </span>
+                ))}
+              </div>
             </div>
-          ))}
-          <span className="text-on-surface/30 text-xs font-black">VS</span>
-          {teamB.map(p => (
-            <div key={p.id} className={cn('flex items-center gap-1 px-2 py-1 rounded-lg', RANK_COLORS[p.rank])}>
-              <span className="text-xs font-bold">{p.rank}</span>
-              <span className="text-xs font-bold">{p.name}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+          );
+        };
+        return (
+          <div className="flex-1 min-w-0 flex items-stretch gap-2 flex-wrap">
+            {box(teamA, 'ทีม A', 'A')}
+            <span className="self-center text-on-surface/30 text-xs font-black">VS</span>
+            {box(teamB, 'ทีม B', 'B')}
+            {win === 'draw' && <span className="self-center px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 text-[11px] font-black">เสมอ</span>}
+          </div>
+        );
+      })()}
 
       {/* Shuttle edit */}
       <div className="flex items-center gap-2 shrink-0">
