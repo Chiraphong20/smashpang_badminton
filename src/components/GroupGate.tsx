@@ -12,6 +12,7 @@ interface Props {
 
 const ERRORS: Record<string, string> = {
   invalid_id: 'รหัสก๊วนใช้ได้เฉพาะ a-z, 0-9 และ - ยาว 3–30 ตัว (ขึ้นต้นด้วยตัวอักษรหรือตัวเลข)',
+  invalid_name: 'ชื่อก๊วนต้องไม่ว่าง และยาวไม่เกิน 100 ตัวอักษร',
   invalid_pin: 'PIN ต้องเป็นตัวเลข 4–8 หลัก',
   invalid_email: 'อีเมลไม่ถูกต้อง (เช่น name@example.com)',
   invalid_username: 'Username ใช้ได้เฉพาะ a-z, 0-9 และ . _ - ยาว 3–20 ตัว',
@@ -85,6 +86,29 @@ function OwnerArea({ me, myGroups, notice, onReload, onLogout }: {
   const [id, setId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [newName, setNewName] = useState('');
+  // แก้ชื่อ / ลบก๊วน (เฉพาะก๊วนที่เป็นเจ้าของ)
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [delId, setDelId] = useState<string | null>(null);
+  const [delConfirm, setDelConfirm] = useState('');
+
+  const saveName = async (gid: string) => {
+    const name = editName.trim();
+    if (!name) return;
+    setBusy(true); setError('');
+    const r = await userApi<{ error?: string }>(`/me/groups/${gid}`, 'PATCH', { name });
+    setBusy(false);
+    if (!r.ok) { setError(err(r.data.error)); return; }
+    setEditId(null); onReload();
+  };
+  const removeGroup = async (gid: string) => {
+    setBusy(true); setError('');
+    const r = await userApi<{ error?: string }>(`/me/groups/${gid}`, 'DELETE', { confirm: delConfirm.trim() });
+    setBusy(false);
+    if (!r.ok) { setError(r.data.error === 'confirm_mismatch' ? 'พิมพ์รหัสก๊วนไม่ตรง' : err(r.data.error)); return; }
+    setDelId(null); setDelConfirm(''); onReload();
+  };
 
   const enter = async (gid: string) => {
     if (await enterGroupAsOwner(gid)) location.href = groupUrl(gid);
@@ -98,6 +122,7 @@ function OwnerArea({ me, myGroups, notice, onReload, onLogout }: {
     const r = await userApi<{ error?: string; message?: string }>('/me/groups', 'POST', { id: gid });
     setBusy(false);
     if (!r.ok) { setError((r.data.error === 'plan_limit' && r.data.message) || err(r.data.error)); return; }
+    if (newName.trim()) await userApi(`/me/groups/${gid}`, 'PATCH', { name: newName.trim() });
     await enter(gid);
   };
 
@@ -121,22 +146,60 @@ function OwnerArea({ me, myGroups, notice, onReload, onLogout }: {
           <div className="space-y-2">
             <p className="text-xs font-bold text-gray-400">ก๊วนของฉัน</p>
             {myGroups.length === 0 && <p className="text-sm text-gray-400">ยังไม่มีก๊วน — สร้างก๊วนแรกของคุณได้เลย</p>}
-            {myGroups.map(g => (
-              <button key={g.id} onClick={() => enter(g.id)} disabled={g.status === 'suspended'}
-                className="w-full flex items-center justify-between px-5 py-3 border-2 border-gray-100 hover:border-primary/40 hover:bg-primary/5 rounded-xl transition-all text-left disabled:opacity-40">
-                <span className="min-w-0">
-                  <span className="block font-bold text-gray-900 truncate">{g.name}</span>
-                  <span className="block text-xs text-gray-400">{g.id}{g.role === 'helper' ? ` · ผู้ช่วย${g.ownerName ? ' ของ ' + g.ownerName : ''}` : g.name === g.id ? ' · ยังไม่ได้ตั้งชื่อ' : ''}{g.status === 'suspended' ? ' · ถูกระงับ' : ''}</span>
-                </span>
-                <span className="text-gray-300 ml-3">›</span>
-              </button>
-            ))}
+            {myGroups.map(g => {
+              const mine = g.role !== 'helper';
+              if (editId === g.id) return (
+                <form key={g.id} onSubmit={e => { e.preventDefault(); saveName(g.id); }} className="px-4 py-3 border-2 border-primary/40 rounded-xl space-y-2">
+                  <p className="text-xs font-bold text-gray-400">แก้ชื่อก๊วน · รหัส {g.id}</p>
+                  <input autoFocus onFocus={e => e.target.select()} className={authField} value={editName} onChange={e => setEditName(e.target.value)} maxLength={100} placeholder="ชื่อก๊วน" aria-label="ชื่อก๊วน" />
+                  <div className="flex gap-2">
+                    <button type="button" className={authGhost} onClick={() => setEditId(null)}>ยกเลิก</button>
+                    <button disabled={busy || !editName.trim()} className={authPrimary}>{busy ? 'กำลังบันทึก...' : 'บันทึกชื่อ'}</button>
+                  </div>
+                </form>
+              );
+              if (delId === g.id) return (
+                <div key={g.id} className="px-4 py-3 border-2 border-red-200 bg-red-50 rounded-xl space-y-2">
+                  <p className="text-sm font-black text-red-600">ลบก๊วน “{g.name}” ?</p>
+                  <p className="text-xs text-red-500 font-semibold">ข้อมูลทั้งหมดของก๊วนนี้ (สมาชิก ประวัติ เงิน) จะหายถาวร กู้คืนไม่ได้ · พิมพ์รหัสก๊วน <b>{g.id}</b> เพื่อยืนยัน</p>
+                  <input autoFocus className={authField} value={delConfirm} onChange={e => setDelConfirm(e.target.value)} placeholder={g.id} aria-label="พิมพ์รหัสก๊วนเพื่อยืนยันการลบ" autoCapitalize="none" autoCorrect="off" />
+                  <div className="flex gap-2">
+                    <button type="button" className={authGhost} onClick={() => { setDelId(null); setDelConfirm(''); }}>ยกเลิก</button>
+                    <button type="button" disabled={busy || delConfirm.trim() !== g.id} onClick={() => removeGroup(g.id)}
+                      className="w-full py-3 rounded-xl bg-red-500 text-white font-black text-sm disabled:opacity-40">{busy ? 'กำลังลบ...' : 'ลบก๊วนถาวร'}</button>
+                  </div>
+                </div>
+              );
+              return (
+                <div key={g.id} className="flex items-stretch gap-1.5">
+                  <button onClick={() => enter(g.id)} disabled={g.status === 'suspended'}
+                    className="flex-1 min-w-0 flex items-center justify-between px-5 py-3 border-2 border-gray-100 hover:border-primary/40 hover:bg-primary/5 rounded-xl transition-all text-left disabled:opacity-40">
+                    <span className="min-w-0">
+                      <span className="block font-bold text-gray-900 truncate">{g.name}</span>
+                      <span className="block text-xs text-gray-400">{g.id}{g.role === 'helper' ? ` · ผู้ช่วย${g.ownerName ? ' ของ ' + g.ownerName : ''}` : g.name === g.id ? ' · ยังไม่ได้ตั้งชื่อ' : ''}{g.status === 'suspended' ? ' · ถูกระงับ' : ''}</span>
+                    </span>
+                    <span className="text-gray-300 ml-3">›</span>
+                  </button>
+                  {mine && (
+                    <>
+                      <button onClick={() => { setEditId(g.id); setEditName(g.name === g.id ? '' : g.name); setDelId(null); setError(''); }} aria-label={`แก้ชื่อก๊วน ${g.id}`} title="แก้ชื่อ"
+                        className="w-11 shrink-0 rounded-xl border-2 border-gray-100 text-gray-400 hover:text-primary hover:border-primary/40 text-lg">✎</button>
+                      <button onClick={() => { setDelId(g.id); setDelConfirm(''); setEditId(null); setError(''); }} aria-label={`ลบก๊วน ${g.id}`} title="ลบก๊วน"
+                        className="w-11 shrink-0 rounded-xl border-2 border-gray-100 text-gray-300 hover:text-red-500 hover:border-red-200 text-lg">🗑</button>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {error && <p className="text-sm font-bold text-red-500">{error}</p>}
           <button onClick={() => { setCreating(true); setError(''); }} className={authPrimary}>+ สร้างก๊วนใหม่</button>
         </>
       ) : (
         <form onSubmit={create} className="space-y-5">
+          <div className="space-y-1">
+            <input className={authField} placeholder="ชื่อก๊วน (ไม่บังคับ) เช่น ก๊วนวันอังคาร" value={newName} onChange={e => setNewName(e.target.value)} maxLength={100} aria-label="ชื่อก๊วน" />
+          </div>
           <div className="space-y-1">
             <input autoFocus className={authField} placeholder="รหัสก๊วน (a-z, 0-9, -) เช่น tue-club" value={id} onChange={e => setId(e.target.value)} autoCapitalize="none" autoCorrect="off" maxLength={30} />
             <p className="text-xs text-gray-400 ml-1">ใช้เป็นลิงก์ก๊วน เช่น ?g=รหัสก๊วน (เข้าก๊วนด้วยบัญชีของคุณ)</p>

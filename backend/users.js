@@ -265,6 +265,23 @@ me.post('/groups', wrap(async (req, res) => {
   }
 }));
 
+// เปลี่ยนชื่อก๊วน — เจ้าของก๊วนเท่านั้น (ผู้ช่วยทำไม่ได้)
+me.patch('/groups/:gid', wrap(async (req, res) => {
+  if (!(await ownedGroup(req, res))) return;
+  const name = String(req.body?.name || '').trim();
+  if (!name || name.length > 100) return res.status(400).json({ error: 'invalid_name' });
+  await pool.query('UPDATE `groups` SET name = ? WHERE id = ?', [name, req.params.gid]);
+  res.json({ ok: true, name });
+}));
+
+// ลบก๊วน (ลบข้อมูลทั้งหมดของก๊วน กู้คืนไม่ได้) — เจ้าของก๊วนเท่านั้น และต้องส่ง confirm = รหัสก๊วน
+me.delete('/groups/:gid', wrap(async (req, res) => {
+  if (!(await ownedGroup(req, res))) return;
+  if (String(req.body?.confirm || '') !== req.params.gid) return res.status(400).json({ error: 'confirm_mismatch' });
+  await pool.query('DELETE FROM `groups` WHERE id = ?', [req.params.gid]);
+  res.json({ ok: true });
+}));
+
 // เจ้าของก๊วน (หรือแอดมินระบบ) เข้าก๊วนได้โดยไม่ต้องใส่ PIN
 me.post('/groups/:gid/enter', wrap(async (req, res) => {
   const [rows] = await pool.query('SELECT owner_id, status FROM `groups` WHERE id = ?', [req.params.gid]);
