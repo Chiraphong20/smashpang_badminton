@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AuthPage } from './AuthPage';
+import { InstallApp } from './InstallApp';
 import { AuthShell, authField, authPrimary, authGhost } from './AuthShell';
 import {
   Me, MyGroup, groupUrl, getUserToken, setUserToken, clearUserToken,
@@ -136,6 +137,8 @@ function OwnerArea({ me, myGroups, notice, onReload, onLogout }: {
         </div>
         <button onClick={onLogout} className="text-xs font-bold text-gray-400 hover:text-gray-700 shrink-0 ml-3">ออกจากระบบ</button>
       </div>
+
+      <InstallApp />
 
       {me.role === 'admin' && (
         <a href="?admin" className={`${authGhost} block text-center`}>⚙️ จัดการระบบ (แอดมิน)</a>

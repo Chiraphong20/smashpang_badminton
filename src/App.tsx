@@ -24,6 +24,7 @@ import { ManageProductsModal } from './components/ManageProductsModal';
 import { ImportMembersModal } from './components/ImportMembersModal';
 import { LogsTab } from './components/LogsTab';
 import { PhotoViewer } from './components/Avatar';
+import { InstallApp } from './components/InstallApp';
 import { QueueView } from './components/QueueView';
 import { SignupPage } from './components/SignupPage';
 import { RANK_WEIGHTS, MODE_THEME, MODE_LABELS, AutoMatchOpts, DEFAULT_AUTO_OPTS } from './types';
@@ -1629,6 +1630,8 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
               <ShoppingCart size={20} className="shrink-0" />
               {!isSidebarCollapsed && <span>จัดการสินค้า</span>}
             </button>
+
+            <InstallApp variant="dark" collapsed={isSidebarCollapsed} />
 
             <button onClick={logout}
               title={isSidebarCollapsed ? "ออกจากระบบ" : ""}
