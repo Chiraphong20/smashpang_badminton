@@ -16,6 +16,8 @@ const ERRORS: Record<string, string> = {
   too_many_codes: 'กรอกผิดหลายครั้งเกินไป — กด "ส่งรหัสใหม่" เพื่อรับรหัสใหม่',
   email_failed: 'ส่งอีเมลไม่สำเร็จ ลองกด "ส่งรหัสใหม่" อีกครั้ง',
   cooldown: 'เพิ่งส่งรหัสไป รอสักครู่แล้วกดใหม่',
+  email_disabled: 'ระบบยังไม่เปิดส่งอีเมล ติดต่อแอดมินเพื่อรีเซ็ตรหัสผ่าน',
+  missing_identifier: 'กรอก Username หรืออีเมลของบัญชี',
   network: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้',
 };
 const err = (code?: string) => ERRORS[code || ''] || 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง';
@@ -49,6 +51,32 @@ export function AuthPage({ notice, onBack, onDone }: Props) {
   const [code, setCode] = useState('');
   const [cooldown, setCooldown] = useState(0);
   const [info, setInfo] = useState('');
+  // ลืมรหัสผ่าน: ขั้น 1 = กรอกบัญชีเพื่อรับรหัสทางอีเมล · ขั้น 2 = กรอกรหัส 6 หลัก + ตั้งรหัสใหม่
+  const [forgot, setForgot] = useState<null | 'ask' | 'reset'>(null);
+  const [newPw, setNewPw] = useState('');
+
+  const startForgot = () => { setForgot('ask'); setError(''); setInfo(''); setCode(''); setNewPw(''); setPassword(''); };
+  const sendReset = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!identifier.trim() || cooldown > 0) return;
+    setBusy(true); setError(''); setInfo('');
+    const r = await userApi<{ error?: string }>('/auth/forgot', 'POST', { identifier: identifier.trim() });
+    setBusy(false);
+    if (!r.ok) { setError(err(r.data.error)); return; }
+    setForgot('reset'); setCooldown(60);
+    setInfo('ถ้าบัญชีนี้มีในระบบ เราส่งรหัส 6 หลักไปที่อีเมลที่สมัครไว้แล้ว (เช็กกล่องสแปมด้วย)');
+  };
+  const doReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code.length !== 6) return;
+    if (newPw.length < 6) { setError(ERRORS.weak_password); return; }
+    setBusy(true); setError('');
+    const r = await userApi<{ token: string; error?: string; left?: number }>('/auth/reset', 'POST', { identifier: identifier.trim(), code, password: newPw });
+    setBusy(false);
+    if (r.ok) { setUserToken(r.data.token); onDone(); return; }
+    setError(r.data.error === 'invalid_code' && typeof r.data.left === 'number' ? `รหัสไม่ถูกต้อง (เหลืออีก ${r.data.left} ครั้ง)` : err(r.data.error));
+    setCode('');
+  };
 
   useEffect(() => { fetchConfig().then(c => setEmailOn(c.emailEnabled)); }, []);
   useEffect(() => {
@@ -82,7 +110,7 @@ export function AuthPage({ notice, onBack, onDone }: Props) {
     else { setError(err(r.data.error)); if (r.data.error === 'cooldown') setCooldown(30); }
   };
 
-  const switchFlow = (f: Flow) => { setFlow(f); setError(''); setPassword(''); };
+  const switchFlow = (f: Flow) => { setFlow(f); setError(''); setPassword(''); setForgot(null); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +149,34 @@ export function AuthPage({ notice, onBack, onDone }: Props) {
     >
       {notice && <p className="px-4 py-3 bg-amber-50 text-amber-700 rounded-xl text-sm font-bold">{notice}</p>}
 
-      {otpEmail ? (
+      {forgot ? (
+        <form onSubmit={forgot === 'ask' ? sendReset : doReset} className="space-y-6">
+          <div className="space-y-2">
+            <h2 className="font-headline font-black text-3xl text-gray-900">ลืมรหัสผ่าน</h2>
+            <p className="text-gray-500 text-sm">
+              {forgot === 'ask' ? 'กรอก Username หรืออีเมลของบัญชี เราจะส่งรหัส 6 หลักไปที่อีเมลที่สมัครไว้ เพื่อให้คุณตั้งรหัสผ่านใหม่' : 'กรอกรหัส 6 หลักจากอีเมล แล้วตั้งรหัสผ่านใหม่'}
+            </p>
+          </div>
+          {forgot === 'ask' ? (
+            <input autoFocus className={field} placeholder="Username หรืออีเมล" aria-label="Username หรืออีเมลของบัญชี" value={identifier} onChange={e => setIdentifier(e.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="username" />
+          ) : (
+            <div className="space-y-4">
+              <input autoFocus className={`${field} text-center text-3xl font-black tracking-[0.5em] pl-[0.5em]`} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" aria-label="รหัส 6 หลักจากอีเมล"
+                value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+              <PasswordInput value={newPw} onChange={setNewPw} show={showPw} setShow={setShowPw} placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)" autoComplete="new-password" />
+            </div>
+          )}
+          {info && <p className="text-sm font-bold text-emerald-600">{info}</p>}
+          {error && <p className="text-sm font-bold text-red-500">{error}</p>}
+          <button disabled={busy || (forgot === 'ask' ? !identifier.trim() : code.length !== 6 || newPw.length < 6)} className={`${primary} w-full`}>
+            {busy ? 'กำลังดำเนินการ...' : forgot === 'ask' ? 'ส่งรหัสไปที่อีเมล' : 'ตั้งรหัสผ่านใหม่และเข้าสู่ระบบ'}
+          </button>
+          <div className="flex items-center justify-between text-sm font-bold">
+            <button type="button" onClick={() => { setForgot(null); setError(''); setInfo(''); }} className="text-gray-400 hover:text-gray-700">← กลับไปเข้าสู่ระบบ</button>
+            {forgot === 'reset' && <button type="button" onClick={() => sendReset()} disabled={cooldown > 0} className="text-primary disabled:text-gray-400">{cooldown > 0 ? `ส่งรหัสใหม่ได้ใน ${cooldown} วินาที` : 'ส่งรหัสใหม่'}</button>}
+          </div>
+        </form>
+      ) : otpEmail ? (
         <form onSubmit={verifyOtp} className="space-y-6 text-center">
           <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center text-3xl">✉️</div>
           <div className="space-y-2">
@@ -153,6 +208,7 @@ export function AuthPage({ notice, onBack, onDone }: Props) {
           <div className="space-y-4">
             <input autoFocus className={field} placeholder="Username หรืออีเมล" value={identifier} onChange={e => setIdentifier(e.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="username" />
             <PasswordInput value={password} onChange={setPassword} show={showPw} setShow={setShowPw} placeholder="รหัสผ่าน" autoComplete="current-password" />
+            {emailOn && <button type="button" onClick={startForgot} className="text-sm font-bold text-primary hover:underline">ลืมรหัสผ่าน?</button>}
           </div>
         ) : (
           <div className="space-y-4">

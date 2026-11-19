@@ -35,7 +35,7 @@ const OTP_MAX_ATTEMPTS = 5;
 const otpHash = (userId, code) => hashSecret(`${userId}:${code}`);
 
 // สร้างรหัส 6 หลักแล้วส่งอีเมล — คืน 'cooldown' ถ้าเพิ่งส่งไปไม่ถึง 60 วินาที, โยน error ถ้าส่งไม่สำเร็จ
-async function sendOtp(user) {
+async function sendOtp(user, purpose = 'verify') {
   const [rows] = await pool.query('SELECT sent_at FROM email_otp WHERE user_id = ?', [user.id]);
   if (rows[0] && Date.now() - Number(rows[0].sent_at) < OTP_COOLDOWN_MS) return 'cooldown';
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
@@ -44,10 +44,13 @@ async function sendOtp(user) {
     'INSERT INTO email_otp (user_id, otp_hash, attempts, expires_at, sent_at) VALUES (?, ?, 0, ?, ?) ON DUPLICATE KEY UPDATE otp_hash = VALUES(otp_hash), attempts = 0, expires_at = VALUES(expires_at), sent_at = VALUES(sent_at)',
     [user.id, otpHash(user.id, code), now + OTP_TTL_MS, now]
   );
+  const reset = purpose === 'reset';
   await sendMail({
     to: user.email,
-    subject: `รหัสยืนยัน SmashPang: ${code}`,
-    html: `<p>สวัสดี ${user.display_name}</p><p>รหัสยืนยันอีเมลของคุณคือ</p><p style="font-size:30px;font-weight:bold;letter-spacing:6px">${code}</p><p>รหัสนี้หมดอายุใน 10 นาที หากคุณไม่ได้สมัคร SmashPang กรุณาเพิกเฉยต่ออีเมลนี้</p>`,
+    subject: reset ? `รหัสตั้งรหัสผ่านใหม่ SmashPang: ${code}` : `รหัสยืนยัน SmashPang: ${code}`,
+    html: reset
+      ? `<p>สวัสดี ${user.display_name}</p><p>รหัสสำหรับตั้งรหัสผ่านใหม่ของบัญชี SmashPang คือ</p><p style="font-size:30px;font-weight:bold;letter-spacing:6px">${code}</p><p>รหัสนี้หมดอายุใน 10 นาที หากคุณไม่ได้ขอตั้งรหัสผ่านใหม่ กรุณาเพิกเฉยต่ออีเมลนี้ รหัสผ่านเดิมของคุณจะไม่เปลี่ยน</p>`
+      : `<p>สวัสดี ${user.display_name}</p><p>รหัสยืนยันอีเมลของคุณคือ</p><p style="font-size:30px;font-weight:bold;letter-spacing:6px">${code}</p><p>รหัสนี้หมดอายุใน 10 นาที หากคุณไม่ได้สมัคร SmashPang กรุณาเพิกเฉยต่ออีเมลนี้</p>`,
   });
   return 'sent';
 }
@@ -144,6 +147,41 @@ auth.post('/verify-otp', throttle(30, 60 * 60 * 1000), wrap(async (req, res) => 
     return res.status(400).json({ error: 'invalid_code', left: Math.max(0, OTP_MAX_ATTEMPTS - row.attempts - 1) });
   }
   await pool.query("UPDATE users SET status = 'active' WHERE id = ?", [uid]);
+  await pool.query('DELETE FROM email_otp WHERE user_id = ?', [uid]);
+  res.json({ ok: true, token: issueUserToken(uid) });
+}));
+
+// ลืมรหัสผ่าน: ขอรหัส 6 หลักทางอีเมล — ตอบเหมือนกันเสมอ ไม่บอกว่าบัญชีนี้มีในระบบหรือไม่
+auth.post('/forgot', throttle(10, 60 * 60 * 1000), wrap(async (req, res) => {
+  if (!emailEnabled()) return res.status(503).json({ error: 'email_disabled' });
+  const ident = String(req.body?.identifier || '').trim();
+  if (!ident || ident.length > 190) return res.status(400).json({ error: 'missing_identifier' });
+  const [rows] = await pool.query("SELECT * FROM users WHERE (username = ? OR email = ?) AND status = 'active'", [ident, ident.toLowerCase()]);
+  if (rows[0]) {
+    try { await sendOtp(rows[0], 'reset'); } catch (e) { console.error('reset OTP email failed:', e.message); }
+  }
+  res.json({ ok: true });
+}));
+
+// ตั้งรหัสผ่านใหม่ด้วยรหัส 6 หลัก → ล็อกอินให้เลย
+auth.post('/reset', throttle(20, 60 * 60 * 1000), wrap(async (req, res) => {
+  const ident = String(req.body?.identifier || '').trim();
+  const code = String(req.body?.code || '').trim();
+  const password = String(req.body?.password || '');
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'invalid_code' });
+  if (password.length < 6 || password.length > 100) return res.status(400).json({ error: 'weak_password' });
+  const [users] = await pool.query("SELECT id FROM users WHERE (username = ? OR email = ?) AND status = 'active'", [ident, ident.toLowerCase()]);
+  if (users.length === 0) return res.status(400).json({ error: 'invalid_code' });
+  const uid = users[0].id;
+  const [rows] = await pool.query('SELECT otp_hash, attempts, expires_at FROM email_otp WHERE user_id = ?', [uid]);
+  const row = rows[0];
+  if (!row || Number(row.expires_at) < Date.now()) return res.status(400).json({ error: 'code_expired' });
+  if (row.attempts >= OTP_MAX_ATTEMPTS) return res.status(429).json({ error: 'too_many_codes' });
+  if (row.otp_hash !== otpHash(uid, code)) {
+    await pool.query('UPDATE email_otp SET attempts = attempts + 1 WHERE user_id = ?', [uid]);
+    return res.status(400).json({ error: 'invalid_code', left: Math.max(0, OTP_MAX_ATTEMPTS - row.attempts - 1) });
+  }
+  await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [hashPin(password), uid]);
   await pool.query('DELETE FROM email_otp WHERE user_id = ?', [uid]);
   res.json({ ok: true, token: issueUserToken(uid) });
 }));
