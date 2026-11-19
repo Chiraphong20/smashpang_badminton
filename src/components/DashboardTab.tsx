@@ -89,13 +89,23 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
   isReadOnly: boolean;
   onClose: () => void;
 }) {
-  const [selectedOthers] = useState<string[]>(initialOthers);
+  const [selectedOthers, setSelectedOthers] = useState<string[]>(initialOthers);
+  // จ่ายให้คนอื่นพร้อมกัน: เลือกคนที่ค้างชำระมารวมในบิลนี้ (A จ่ายให้ B)
+  const [picking, setPicking] = useState(false);
+  const [pickQ, setPickQ] = useState('');
   const myGames = gameHistory.filter(g => g.players.some(p => p.id === member.id));
 
   const othersNames = otherMembers.filter(m => selectedOthers.includes(m.id)).map(m => m.name).join(', ');
   const totalBalance = member.balance + otherMembers.filter(m => selectedOthers.includes(m.id)).reduce((a, b) => a + b.balance, 0);
 
   const [manualAmount, setManualAmount] = useState<number | null>(null);
+  const toggleOther = (id: string) => {
+    setSelectedOthers(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    setManualAmount(null); // ยอดรับจริงกลับไปใช้ยอดรวมใหม่
+  };
+  const payable = otherMembers.filter(m => m.id !== member.id && m.status !== 'paid' && m.balance > 0);
+  const pickList = payable.filter(m => m.name.toLowerCase().includes(pickQ.trim().toLowerCase()));
+  const chosen = otherMembers.filter(m => selectedOthers.includes(m.id));
   const displayAmount = manualAmount !== null ? manualAmount : totalBalance;
 
   const [showQr, setShowQr] = useState(false);
@@ -317,18 +327,62 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
           </div>
         </div>
 
-        {/* Bulk Payment Details label */}
-        {!isReadOnly && selectedOthers.length > 0 && (
-          <div className="mt-4 px-5 py-4 bg-primary/5 rounded-3xl border border-primary/10">
-            <h4 className="text-xs font-bold text-primary/60 mb-3">รายชื่อคนอื่นๆ ที่จ่ายร่วมกัน</h4>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-              {otherMembers.filter(m => selectedOthers.includes(m.id)).map(m => (
-                <div key={m.id} className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-on-surface/60">{m.name}</span>
-                  <span className="text-tertiary">฿{m.balance.toFixed(0)}</span>
-                </div>
-              ))}
+        {/* จ่ายให้คนอื่นพร้อมกัน (A จ่ายให้ B) */}
+        {!isReadOnly && member.status !== 'paid' && (payable.length > 0 || chosen.length > 0) && (
+          <div className="mt-4 rounded-3xl border border-primary/15 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-sm font-black text-primary">👥 จ่ายให้คนอื่นพร้อมกัน</h4>
+              <button type="button" onClick={() => { setPicking(v => !v); setPickQ(''); }} aria-label="เลือกคนที่จะจ่ายให้"
+                className="px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-black hover:scale-105 active:scale-95 transition-transform">
+                {picking ? 'ปิดรายชื่อ' : '+ เลือกคน'}
+              </button>
             </div>
+
+            {picking && (
+              <div className="rounded-2xl bg-white border border-primary/10 overflow-hidden">
+                <div className="p-2 border-b border-on-surface/5">
+                  <input autoFocus value={pickQ} onChange={e => setPickQ(e.target.value)} placeholder="ค้นหาชื่อคนที่ค้างชำระ…" aria-label="ค้นหาคนที่จะจ่ายให้"
+                    className="w-full px-3 py-2 rounded-xl bg-background text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                </div>
+                <div className="max-h-52 overflow-y-auto divide-y divide-on-surface/5">
+                  {pickList.length === 0 && <p className="text-center text-xs font-bold text-on-surface/30 py-5">ไม่พบคนที่ค้างชำระ</p>}
+                  {pickList.map(m => {
+                    const on = selectedOthers.includes(m.id);
+                    return (
+                      <button type="button" key={m.id} onClick={() => toggleOther(m.id)} aria-pressed={on}
+                        className={cn('w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors', on ? 'bg-primary/10' : 'hover:bg-primary/5')}>
+                        <span className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0', on ? 'bg-primary border-primary text-white' : 'border-on-surface/20')}>{on && <Check size={13} strokeWidth={4} />}</span>
+                        <span className={cn('px-1.5 py-0.5 rounded-md text-[10px] font-black shrink-0', RANK_COLORS[m.rank])}>{m.rank}</span>
+                        <span className="flex-1 min-w-0 truncate text-sm font-bold">{m.name}</span>
+                        <span className="text-sm font-black text-tertiary shrink-0">฿{m.balance.toFixed(0)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {chosen.length > 0 ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-sm font-bold bg-white rounded-xl px-3 py-2">
+                  <span className="text-on-surface/70">{member.name} <span className="text-[11px] text-on-surface/40">(ผู้จ่าย)</span></span>
+                  <span className="text-on-surface/80">฿{member.balance.toFixed(0)}</span>
+                </div>
+                {chosen.map(m => (
+                  <div key={m.id} className="flex items-center gap-2 text-sm font-bold bg-white rounded-xl px-3 py-2">
+                    <span className="flex-1 min-w-0 truncate text-on-surface/70">+ {m.name}</span>
+                    <span className="text-tertiary">฿{m.balance.toFixed(0)}</span>
+                    <button type="button" onClick={() => toggleOther(m.id)} aria-label={`เอา ${m.name} ออก`} className="text-on-surface/30 hover:text-error"><X size={15} /></button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between px-3 pt-1 text-sm font-black text-primary">
+                  <span>รวมจ่ายพร้อมกัน {chosen.length + 1} คน</span>
+                  <span>฿{totalBalance.toFixed(0)}</span>
+                </div>
+              </div>
+            ) : (
+              !picking && <p className="text-xs font-semibold text-on-surface/45">ต้องการจ่ายให้เพื่อน/คนในกลุ่มด้วย? กด “+ เลือกคน” แล้วรับเงินครั้งเดียวปิดยอดให้ทุกคน</p>
+            )}
           </div>
         )}
 
