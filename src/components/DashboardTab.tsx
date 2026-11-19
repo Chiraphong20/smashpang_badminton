@@ -147,7 +147,7 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
         className="absolute inset-0 bg-on-surface/50 backdrop-blur-sm" />
       <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
         onClick={e => e.stopPropagation()}
-        className="bg-white rounded-[2.5rem] w-full max-w-4xl p-8 shadow-2xl relative z-10 max-h-[90vh] flex flex-col">
+        className="bg-white rounded-[2.5rem] w-full max-w-[min(80vw,1400px)] p-8 shadow-2xl relative z-10 max-h-[92vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center gap-5 mb-6">
@@ -189,7 +189,8 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-6 min-h-0 pr-1 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto min-h-0 pr-1 custom-scrollbar">
+        <div className="space-y-6">
           {/* Detailed Snack List — แสดงจาก payment record ถ้าจ่ายแล้ว */}
           {displaySnackHistory.length > 0 && (
             <div className="space-y-3">
@@ -417,6 +418,8 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
             ))}
           </div>
         )}
+
+        </div>
 
         {/* Footer Checkout */}
         <div className="mt-8 pt-6 border-t border-on-surface/5 flex flex-col gap-4">
