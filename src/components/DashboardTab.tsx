@@ -107,6 +107,17 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
   const pickList = payable.filter(m => m.name.toLowerCase().includes(pickQ.trim().toLowerCase()));
   const chosen = otherMembers.filter(m => selectedOthers.includes(m.id));
   const displayAmount = manualAmount !== null ? manualAmount : totalBalance;
+  // แจกแจงว่าเงินก้อนนี้ปิดยอดให้ใครเท่าไหร่ (ผู้จ่ายก่อน แล้วตามลำดับที่เลือก)
+  const allocation = (() => {
+    let left = Math.max(0, displayAmount);
+    return [member, ...chosen].map(m => {
+      const a = Math.max(0, Math.min(m.balance, left));
+      left -= a;
+      return { id: m.id, name: m.name, owe: m.balance, amount: a };
+    });
+  })();
+  // บิลที่จ่ายไปแล้ว: ดูว่าใครจ่ายให้ใครจากประวัติรับเงิน
+  const paidCovers = (member.status === 'paid' ? paymentHistory.filter(p => p.covers && p.covers.some(c => c.id === member.id)) : [])[0]?.covers;
 
   const [showQr, setShowQr] = useState(false);
   const [showRankPick, setShowRankPick] = useState(false);
@@ -136,7 +147,7 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
         className="absolute inset-0 bg-on-surface/50 backdrop-blur-sm" />
       <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
         onClick={e => e.stopPropagation()}
-        className="bg-white rounded-[2.5rem] w-full max-w-2xl p-8 shadow-2xl relative z-10 max-h-[85vh] flex flex-col">
+        className="bg-white rounded-[2.5rem] w-full max-w-4xl p-8 shadow-2xl relative z-10 max-h-[90vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center gap-5 mb-6">
@@ -364,25 +375,46 @@ function CheckoutModal({ member, gameHistory, otherMembers, paymentHistory = [],
 
             {chosen.length > 0 ? (
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-sm font-bold bg-white rounded-xl px-3 py-2">
-                  <span className="text-on-surface/70">{member.name} <span className="text-[11px] text-on-surface/40">(ผู้จ่าย)</span></span>
-                  <span className="text-on-surface/80">฿{member.balance.toFixed(0)}</span>
+                <p className="text-xs font-black text-on-surface/50 px-1">
+                  <span className="text-primary">{member.name}</span> เป็นผู้จ่าย · จ่ายให้ {chosen.length} คน
+                </p>
+                <div className="flex items-center gap-2 text-sm font-bold bg-white rounded-xl px-3 py-2.5">
+                  <span className="flex-1 min-w-0 truncate text-on-surface/80">{member.name} <span className="text-[11px] text-on-surface/40">(ผู้จ่าย · ยอดของตัวเอง)</span></span>
+                  <span className="text-primary font-black">฿{allocation[0].amount.toFixed(0)}</span>
                 </div>
-                {chosen.map(m => (
-                  <div key={m.id} className="flex items-center gap-2 text-sm font-bold bg-white rounded-xl px-3 py-2">
-                    <span className="flex-1 min-w-0 truncate text-on-surface/70">+ {m.name}</span>
-                    <span className="text-tertiary">฿{m.balance.toFixed(0)}</span>
+                {chosen.map((m, i) => (
+                  <div key={m.id} className="flex items-center gap-2 text-sm font-bold bg-white rounded-xl px-3 py-2.5">
+                    <span className="flex-1 min-w-0 truncate text-on-surface/80">
+                      <span className="text-on-surface/40">{member.name} จ่ายให้</span> {m.name}
+                    </span>
+                    <span className="text-primary font-black">฿{(allocation[i + 1]?.amount ?? 0).toFixed(0)}</span>
+                    {(allocation[i + 1]?.amount ?? 0) < m.balance && <span className="text-[11px] text-tertiary">ค้าง ฿{(m.balance - (allocation[i + 1]?.amount ?? 0)).toFixed(0)}</span>}
                     <button type="button" onClick={() => toggleOther(m.id)} aria-label={`เอา ${m.name} ออก`} className="text-on-surface/30 hover:text-error"><X size={15} /></button>
                   </div>
                 ))}
                 <div className="flex items-center justify-between px-3 pt-1 text-sm font-black text-primary">
                   <span>รวมจ่ายพร้อมกัน {chosen.length + 1} คน</span>
-                  <span>฿{totalBalance.toFixed(0)}</span>
+                  <span>฿{displayAmount.toFixed(0)}</span>
                 </div>
               </div>
             ) : (
               !picking && <p className="text-xs font-semibold text-on-surface/45">ต้องการจ่ายให้เพื่อน/คนในกลุ่มด้วย? กด “+ เลือกคน” แล้วรับเงินครั้งเดียวปิดยอดให้ทุกคน</p>
             )}
+          </div>
+        )}
+
+        {/* หลังจ่ายแล้ว: ใครจ่ายให้ใคร เท่าไหร่ */}
+        {member.status === 'paid' && paidCovers && paidCovers.length > 1 && (
+          <div className="mt-4 rounded-3xl border border-green-500/20 bg-green-500/5 p-4 space-y-1.5">
+            <h4 className="text-sm font-black text-green-600">👥 จ่ายรวมกัน {paidCovers.length} คน · ฿{paidCovers.reduce((a, c) => a + c.amount, 0).toLocaleString()}</h4>
+            {paidCovers.map((c, i) => (
+              <div key={c.id} className="flex items-center gap-2 text-sm font-bold bg-white rounded-xl px-3 py-2.5">
+                <span className="flex-1 min-w-0 truncate text-on-surface/80">
+                  {i === 0 ? <>{c.name} <span className="text-[11px] text-on-surface/40">(ผู้จ่าย · ยอดของตัวเอง)</span></> : <><span className="text-on-surface/40">{paidCovers[0].name} จ่ายให้</span> {c.name}</>}
+                </span>
+                <span className="text-green-600 font-black">฿{c.amount.toLocaleString()}</span>
+              </div>
+            ))}
           </div>
         )}
 

@@ -1263,6 +1263,15 @@ function GroupApp({ isHelper, groupName, schedule, needsName, onRename }: { isHe
       timestamp: Date.now(),
       method,
       note,
+      ...(otherMemberIds.length > 0 ? (() => {
+        let left = amount;
+        const covers = allMemberIds.map(id => members.find(x => x.id === id)).filter((m): m is Member => !!m).map(m => {
+          const a = Math.max(0, Math.min(m.balance, left));
+          left -= a;
+          return { id: m.id, name: m.name, amount: a };
+        });
+        return { covers };
+      })() : {}),
       details: recordDetails
     };
 

@@ -107,6 +107,8 @@ export interface PaymentRecord {
   timestamp: number;
   method: string;
   note?: string;
+  /** จ่ายพร้อมกันหลายคน: ใครถูกปิดยอดด้วยเงินก้อนนี้ และเท่าไหร่ (ผู้จ่ายเป็นรายการแรก) */
+  covers?: Array<{ id: string; name: string; amount: number }>;
   details?: {
     courtBalance: number;
     shuttleBalance: number;
